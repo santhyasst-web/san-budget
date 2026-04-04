@@ -51,15 +51,21 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
   }
 
   const weekTxns = transactions.filter(t => t.week_number === activeWeek)
-  const categoryTotals: Record<string, number> = {}
-  transactions.filter(t => !t.is_shared).forEach(t => {
-    categoryTotals[t.category] = (categoryTotals[t.category] ?? 0) + Number(t.amount)
+  // Per-week actuals (only this week, only non-shared)
+  const weekCategoryActuals: Record<string, number> = {}
+  weekTxns.filter(t => !t.is_shared).forEach(t => {
+    weekCategoryActuals[t.category] = (weekCategoryActuals[t.category] ?? 0) + Number(t.amount)
   })
   const weekTotal = weekTxns.filter(t => !t.is_shared).reduce((s, t) => s + Number(t.amount), 0)
+  const weeklyBudget = (b: number) => b / 5  // divide monthly budget into 5 weeks
 
-  // Alerts for >75% categories
+  // Alerts for >75% of weekly allocation
   const alerts = budgets
-    .map(b => ({ ...b, actual: categoryTotals[b.category] ?? 0, pct: ((categoryTotals[b.category] ?? 0) / Number(b.budgeted)) * 100 }))
+    .map(b => {
+      const wBudget = weeklyBudget(Number(b.budgeted))
+      const actual = weekCategoryActuals[b.category] ?? 0
+      return { ...b, actual, pct: wBudget > 0 ? (actual / wBudget) * 100 : 0 }
+    })
     .filter(b => b.pct >= 75)
     .sort((a, b) => b.pct - a.pct)
 
@@ -104,11 +110,12 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
             {budgets.length > 0 && (
               <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
                 <div style={{ padding: '12px 16px 8px', borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>MONTHLY BUDGET</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>WEEK {activeWeek} BUDGET (1/5 of monthly)</span>
                 </div>
                 {budgets.map((b, i) => {
-                  const actual = categoryTotals[b.category] ?? 0
-                  const pct = Number(b.budgeted) > 0 ? (actual / Number(b.budgeted)) * 100 : 0
+                  const wBudget = weeklyBudget(Number(b.budgeted))
+                  const actual = weekCategoryActuals[b.category] ?? 0
+                  const pct = wBudget > 0 ? (actual / wBudget) * 100 : 0
                   const meta = CATEGORY_META[b.category] ?? { icon: '•', grad: 'var(--surface2)' }
                   return (
                     <div key={b.id} style={{ padding: '10px 14px', borderBottom: i < budgets.length - 1 ? '1px solid var(--border)' : 'none' }}>
@@ -116,10 +123,10 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
                         <div style={{ width: 28, height: 28, borderRadius: 8, background: meta.grad, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>{meta.icon}</div>
                         <span style={{ fontSize: 13, color: 'var(--text2)', flex: 1 }}>{b.category}</span>
                         <span style={{ fontSize: 11, fontWeight: 600, color: pct >= 100 ? 'var(--red)' : pct >= 75 ? 'var(--orange)' : 'var(--text3)' }}>
-                          {formatCAD(actual)} / {formatCAD(Number(b.budgeted))}
+                          {formatCAD(actual)} / {formatCAD(wBudget)}
                         </span>
                       </div>
-                      <ProgressBar actual={actual} budgeted={Number(b.budgeted)} />
+                      <ProgressBar actual={actual} budgeted={wBudget} />
                     </div>
                   )
                 })}

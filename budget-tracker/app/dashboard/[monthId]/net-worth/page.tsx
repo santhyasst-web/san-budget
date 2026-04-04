@@ -34,6 +34,12 @@ export default function NetWorthPage({ params }: { params: Promise<{ monthId: st
     setEditing(null); setEditValue(''); setSaving(false)
   }
 
+  async function deleteAccount(id: string) {
+    if (!confirm('Remove this account?')) return
+    await supabase.from('accounts').delete().eq('id', id)
+    setAccounts(prev => prev.filter(a => a.id !== id))
+  }
+
   async function addAccount() {
     if (!newName.trim()) return
     setSaving(true)
@@ -105,10 +111,13 @@ export default function NetWorthPage({ params }: { params: Promise<{ monthId: st
                       <button onClick={() => saveBalance(account.id)} disabled={saving} className="text-red-400 font-semibold text-sm">Save</button>
                     </div>
                   ) : (
-                    <button onClick={() => { setEditing(account.id); setEditValue(String(account.balance)) }} className="text-right">
-                      <p className="font-semibold text-white"><CurrencyDisplay amount={Number(account.balance)} /></p>
-                      <p className="text-xs text-red-400">tap to edit</p>
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => { setEditing(account.id); setEditValue(String(account.balance)) }} className="text-right">
+                        <p className="font-semibold text-white"><CurrencyDisplay amount={Number(account.balance)} /></p>
+                        <p className="text-xs text-red-400">tap to edit</p>
+                      </button>
+                      <button onClick={() => deleteAccount(account.id)} className="text-gray-600 hover:text-red-400 text-lg leading-none">×</button>
+                    </div>
                   )}
                 </div>
               </div>
