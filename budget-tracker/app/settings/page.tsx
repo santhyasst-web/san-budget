@@ -1,25 +1,27 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { CurrencyDisplay } from '@/components/ui/CurrencyDisplay'
 import { DEFAULT_FIXED_EXPENSES, DEFAULT_VARIABLE_BUDGETS } from '@/lib/constants/categories'
 import { DEFAULT_ACCOUNTS, DEFAULT_INVESTMENTS } from '@/lib/constants/accounts'
 import { getMonthName } from '@/lib/calculations/monthlySummary'
 import Link from 'next/link'
 import type { Month, FixedExpense, VariableBudget, Investment, Account } from '@/lib/supabase/types'
 
-const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December']
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
-export default function SettingsPage() {
+function SettingsContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const monthIdParam = searchParams.get('monthId')
+
   const [months, setMonths] = useState<Month[]>([])
   const [creating, setCreating] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
+  const [activeSection, setActiveSection] = useState<'months' | 'categories' | 'account'>('months')
 
   const now = new Date()
   const [newYear, setNewYear] = useState(now.getFullYear())
@@ -28,7 +30,7 @@ export default function SettingsPage() {
   const [rentIncome, setRentIncome] = useState('930')
   const [otherIncome, setOtherIncome] = useState('0')
 
-  const [selectedMonthId, setSelectedMonthId] = useState<string | null>(null)
+  const [selectedMonthId, setSelectedMonthId] = useState<string | null>(monthIdParam)
   const [fixedExpenses, setFixedExpenses] = useState<FixedExpense[]>([])
   const [variableBudgets, setVariableBudgets] = useState<VariableBudget[]>([])
   const [investments, setInvestments] = useState<Investment[]>([])
@@ -36,6 +38,11 @@ export default function SettingsPage() {
   const [editingVariable, setEditingVariable] = useState<string | null>(null)
   const [editingInvestment, setEditingInvestment] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
+
+  // New category
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [newCategoryBudget, setNewCategoryBudget] = useState('')
+  const [addingCategory, setAddingCategory] = useState(false)
 
   const supabase = createClient()
 
@@ -47,6 +54,9 @@ export default function SettingsPage() {
         const { data } = await supabase.from('months').select('*').eq('user_id', u.id)
           .order('year', { ascending: false }).order('month', { ascending: false })
         setMonths(data ?? [])
+        if (monthIdParam) {
+          loadMonthDetails(monthIdParam)
+        }
       }
       setLoading(false)
     }
@@ -58,26 +68,17 @@ export default function SettingsPage() {
     setSaving(true)
     const label = `${MONTH_NAMES[newMonth - 1]} ${newYear}`
     const { data: month, error } = await supabase.from('months').insert({
-      user_id: user.id,
-      year: newYear,
-      month: newMonth,
-      label,
+      user_id: user.id, year: newYear, month: newMonth, label,
       salary: parseFloat(salary) || 0,
       rent_income: parseFloat(rentIncome) || 0,
       other_income: parseFloat(otherIncome) || 0,
     }).select().single()
 
-    if (error || !month) {
-      alert(error?.message ?? 'Failed to create month')
-      setSaving(false)
-      return
-    }
+    if (error || !month) { alert(error?.message ?? 'Failed to create month'); setSaving(false); return }
 
     const prevMonth = months[0]
     let fixedToInsert = DEFAULT_FIXED_EXPENSES.map(e => ({ ...e, user_id: user.id, month_id: month.id }))
-    let variableToInsert = Object.entries(DEFAULT_VARIABLE_BUDGETS).map(([category, budgeted]) => ({
-      user_id: user.id, month_id: month.id, category, budgeted
-    }))
+    let variableToInsert = Object.entries(DEFAULT_VARIABLE_BUDGETS).map(([category, budgeted]) => ({ user_id: user.id, month_id: month.id, category, budgeted }))
     let investToInsert = DEFAULT_INVESTMENTS.map(i => ({ ...i, user_id: user.id, month_id: month.id }))
     let accountsToInsert = DEFAULT_ACCOUNTS.map(a => ({ ...a, user_id: user.id, month_id: month.id, balance: 0 }))
 
@@ -146,198 +147,289 @@ export default function SettingsPage() {
     setEditingInvestment(null); setEditValue('')
   }
 
+  async function deleteCategory(id: string) {
+    if (!confirm('Delete this category? Existing transactions will not be deleted.')) return
+    await supabase.from('variable_budget').delete().eq('id', id)
+    setVariableBudgets(prev => prev.filter(b => b.id !== id))
+  }
+
+  async function addCategory() {
+    if (!newCategoryName.trim() || !selectedMonthId || !user) return
+    const budget = parseFloat(newCategoryBudget) || 0
+    const { data, error } = await supabase.from('variable_budget').insert({
+      user_id: user.id,
+      month_id: selectedMonthId,
+      category: newCategoryName.trim(),
+      budgeted: budget,
+    }).select().single()
+    if (!error && data) {
+      setVariableBudgets(prev => [...prev, data].sort((a, b) => a.category.localeCompare(b.category)))
+      setNewCategoryName('')
+      setNewCategoryBudget('')
+      setAddingCategory(false)
+    }
+  }
+
   async function handleSignOut() {
     await supabase.auth.signOut()
     router.push('/login')
   }
 
-  const inputClass = "w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
-  const editInputClass = "w-24 px-2 py-1 bg-gray-700 border border-red-500 rounded text-sm text-right text-white focus:outline-none"
+  const cardStyle: React.CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden', marginBottom: 10 }
+  const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', borderBottom: '1px solid var(--border)' }
+  const labelStyle: React.CSSProperties = { fontSize: 14, color: 'var(--text)', fontWeight: 500 }
+  const valueStyle: React.CSSProperties = { fontSize: 14, fontWeight: 700, color: 'var(--text)' }
+  const dimStyle: React.CSSProperties = { fontSize: 13, color: 'var(--text3)' }
+  const inputStyle: React.CSSProperties = { width: 90, padding: '6px 10px', background: 'var(--surface2)', border: '1px solid var(--red)', borderRadius: 8, color: 'var(--text)', fontSize: 14, textAlign: 'right', outline: 'none' }
+  const saveBtn: React.CSSProperties = { color: 'var(--red)', fontWeight: 700, fontSize: 14, background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }
+
+  const backHref = monthIdParam ? `/dashboard/${monthIdParam}` : '/dashboard'
 
   return (
-    <div className="min-h-screen bg-gray-900 pb-8">
-      <div className="sticky top-0 bg-gray-800 border-b border-gray-700 px-4 py-4 z-10">
-        <div className="flex items-center justify-between max-w-lg mx-auto">
-          <Link href="/dashboard" className="text-red-400 text-sm font-medium">‹ Back</Link>
-          <h1 className="text-lg font-bold text-white">Settings</h1>
-          <div className="w-12" />
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', paddingBottom: 40 }}>
+
+      {/* Header */}
+      <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 10 }}>
+        <div style={{ maxWidth: 520, margin: '0 auto', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Link href={backHref} style={{ color: 'var(--red)', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}>‹ Back</Link>
+          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Settings</span>
+          <button onClick={handleSignOut} style={{ color: 'var(--text3)', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>Sign out</button>
+        </div>
+
+        {/* Section tabs */}
+        <div style={{ maxWidth: 520, margin: '0 auto', display: 'flex', borderTop: '1px solid var(--border)' }}>
+          {(['months', 'categories', 'account'] as const).map(s => (
+            <button key={s} onClick={() => setActiveSection(s)} style={{
+              flex: 1, padding: '10px 0', fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
+              background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase',
+              color: activeSection === s ? 'var(--purple)' : 'var(--text3)',
+              borderBottom: `2px solid ${activeSection === s ? 'var(--purple)' : 'transparent'}`,
+            }}>{s}</button>
+          ))}
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 pt-6 space-y-6">
+      <div style={{ maxWidth: 520, margin: '0 auto', padding: '14px 14px 0' }}>
 
-        {/* User info */}
-        <div className="bg-gray-800 rounded-xl border border-gray-700 p-4 flex items-center justify-between">
-          <div>
-            <p className="font-medium text-white">Signed in as</p>
-            <p className="text-sm text-gray-400">{user?.email}</p>
-          </div>
-          <button onClick={handleSignOut} className="text-sm text-red-400 font-medium">Sign out</button>
-        </div>
+        {/* ── MONTHS TAB ── */}
+        {activeSection === 'months' && (
+          <>
+            <button onClick={() => setCreating(true)} style={{
+              width: '100%', padding: '14px', background: 'linear-gradient(135deg,#e5484d,#c0392b)',
+              color: '#fff', fontWeight: 700, fontSize: 15, border: 'none', borderRadius: 14,
+              cursor: 'pointer', marginBottom: 14, boxShadow: '0 4px 16px rgba(229,72,77,0.35)',
+            }}>+ New Month</button>
 
-        {/* Months */}
-        <div>
-          <div className="flex items-center justify-between mb-2 px-1">
-            <h2 className="font-semibold text-white">Months</h2>
-            <button onClick={() => setCreating(true)} className="text-sm text-red-400 font-medium">+ New Month</button>
-          </div>
-
-          {creating && (
-            <div className="bg-gray-800 rounded-xl border border-red-800 p-4 space-y-3 mb-3">
-              <h3 className="font-semibold text-white">New Month</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Month</label>
-                  <select value={newMonth} onChange={e => setNewMonth(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm text-white focus:outline-none">
-                    {MONTH_NAMES.map((name, i) => <option key={i + 1} value={i + 1}>{name}</option>)}
-                  </select>
+            {creating && (
+              <div style={{ ...cardStyle, padding: 16, marginBottom: 14 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>Create New Month</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                  <div>
+                    <div style={dimStyle}>Month</div>
+                    <select value={newMonth} onChange={e => setNewMonth(Number(e.target.value))}
+                      style={{ width: '100%', padding: '8px 10px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', fontSize: 14, marginTop: 4 }}>
+                      {MONTH_NAMES.map((name, i) => <option key={i + 1} value={i + 1}>{name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <div style={dimStyle}>Year</div>
+                    <input type="number" value={newYear} onChange={e => setNewYear(Number(e.target.value))}
+                      style={{ ...inputStyle, width: '100%', marginTop: 4 }} />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Year</label>
-                  <input type="number" value={newYear} onChange={e => setNewYear(Number(e.target.value))} className={inputClass} />
+                {[
+                  { label: 'Salary', value: salary, set: setSalary },
+                  { label: 'Rent Income', value: rentIncome, set: setRentIncome },
+                  { label: 'Other Income', value: otherIncome, set: setOtherIncome },
+                ].map(({ label, value, set }) => (
+                  <div key={label} style={{ marginBottom: 8 }}>
+                    <div style={dimStyle}>{label}</div>
+                    <input type="number" inputMode="decimal" value={value} onChange={e => set(e.target.value)}
+                      style={{ ...inputStyle, width: '100%', marginTop: 4 }} />
+                  </div>
+                ))}
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 12 }}>Budgets from previous month will be copied automatically.</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => setCreating(false)} style={{ flex: 1, padding: '12px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--text2)', fontSize: 14, cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={createMonth} disabled={saving} style={{ flex: 1, padding: '12px', background: 'var(--red)', border: 'none', borderRadius: 12, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
+                    {saving ? 'Creating...' : 'Create'}
+                  </button>
                 </div>
               </div>
-              {[
-                { label: 'Salary', value: salary, set: setSalary },
-                { label: 'Rent Income', value: rentIncome, set: setRentIncome },
-                { label: 'Other Income', value: otherIncome, set: setOtherIncome },
-              ].map(({ label, value, set }) => (
-                <div key={label}>
-                  <label className="text-xs text-gray-400 mb-1 block">{label}</label>
-                  <input type="number" inputMode="decimal" step="0.01" value={value} onChange={e => set(e.target.value)} className={inputClass} />
-                </div>
-              ))}
-              <p className="text-xs text-gray-500">Budgets from previous month will be copied automatically.</p>
-              <div className="flex gap-2">
-                <button onClick={() => setCreating(false)} className="flex-1 py-2 border border-gray-600 rounded-lg text-sm text-gray-400">Cancel</button>
-                <button onClick={createMonth} disabled={saving} className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-medium disabled:opacity-50">
-                  {saving ? 'Creating...' : 'Create Month'}
-                </button>
-              </div>
-            </div>
-          )}
+            )}
 
-          {loading ? (
-            <div className="text-center py-8 text-gray-500">Loading...</div>
-          ) : (
-            <div className="space-y-2">
-              {months.map(m => (
-                <div key={m.id} className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
-                  <div className="px-4 py-3 flex items-center justify-between">
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: 40, color: 'var(--text3)' }}>Loading...</div>
+            ) : (
+              months.map(m => (
+                <div key={m.id} style={cardStyle}>
+                  <div style={{ ...rowStyle, borderBottom: selectedMonthId === m.id ? '1px solid var(--border)' : 'none' }}>
                     <div>
-                      <p className="font-medium text-white">{m.label}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        Income: <CurrencyDisplay amount={Number(m.salary) + Number(m.rent_income) + Number(m.other_income)} />
-                      </p>
+                      <div style={labelStyle}>{m.label}</div>
+                      <div style={dimStyle}>${(Number(m.salary) + Number(m.rent_income) + Number(m.other_income)).toFixed(2)} income</div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Link href={`/dashboard/${m.id}`} className="text-sm text-red-400 font-medium">View</Link>
-                      <button
-                        onClick={() => selectedMonthId === m.id ? setSelectedMonthId(null) : loadMonthDetails(m.id)}
-                        className="text-sm text-gray-500"
-                      >
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <Link href={`/dashboard/${m.id}`} style={{ color: 'var(--red)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>View</Link>
+                      <button onClick={() => selectedMonthId === m.id ? setSelectedMonthId(null) : loadMonthDetails(m.id)}
+                        style={{ ...saveBtn, color: 'var(--purple)' }}>
                         {selectedMonthId === m.id ? 'Close' : 'Edit'}
                       </button>
                     </div>
                   </div>
 
                   {selectedMonthId === m.id && (
-                    <div className="border-t border-gray-700 px-4 pb-4 pt-3 space-y-4">
-                      {[
-                        {
-                          title: 'Fixed Expenses — Actual Paid',
-                          items: fixedExpenses,
-                          editing: editingFixed,
-                          setEditing: setEditingFixed,
-                          save: saveFixed,
-                          getValue: (e: FixedExpense) => e.actual ?? e.budgeted,
-                          getLabel: (e: FixedExpense) => e.category,
-                          nullLabel: '(budgeted)',
-                          isNull: (e: FixedExpense) => e.actual == null,
-                        },
-                      ].map(section => (
-                        <div key={section.title}>
-                          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{section.title}</h4>
-                          <div className="space-y-1">
-                            {section.items.map((e: FixedExpense) => (
-                              <div key={e.id} className="flex items-center justify-between py-1.5">
-                                <span className="text-sm text-gray-300">{section.getLabel(e)}</span>
-                                {section.editing === e.id ? (
-                                  <div className="flex items-center gap-2">
-                                    <input type="number" inputMode="decimal" step="0.01" value={editValue}
-                                      onChange={ev => setEditValue(ev.target.value)} className={editInputClass} autoFocus />
-                                    <button onClick={() => section.save(e.id)} className="text-red-400 text-sm font-medium">Save</button>
-                                  </div>
-                                ) : (
-                                  <button onClick={() => { section.setEditing(e.id); setEditValue(String(section.getValue(e))) }} className="text-sm text-right">
-                                    <span className={section.isNull(e) ? 'text-gray-500' : 'text-white'}>
-                                      <CurrencyDisplay amount={section.getValue(e)} />
-                                    </span>
-                                    {section.isNull(e) && <span className="text-xs text-gray-600 ml-1">{section.nullLabel}</span>}
-                                  </button>
-                                )}
-                              </div>
-                            ))}
-                          </div>
+                    <div style={{ padding: '12px 16px' }}>
+
+                      {/* Fixed Expenses */}
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Fixed Expenses — Actual Paid</div>
+                      {fixedExpenses.map((e, i) => (
+                        <div key={e.id} style={{ ...rowStyle, padding: '10px 0', borderBottom: i < fixedExpenses.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          <span style={labelStyle}>{e.category}</span>
+                          {editingFixed === e.id ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <input type="number" inputMode="decimal" step="0.01" value={editValue}
+                                onChange={ev => setEditValue(ev.target.value)} style={inputStyle} autoFocus />
+                              <button onClick={() => saveFixed(e.id)} style={saveBtn}>Save</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => { setEditingFixed(e.id); setEditValue(String(e.actual ?? e.budgeted)) }}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'right' }}>
+                              <span style={{ ...valueStyle, color: e.actual != null ? 'var(--text)' : 'var(--text3)' }}>
+                                ${(e.actual ?? e.budgeted).toFixed(2)}
+                              </span>
+                              {e.actual == null && <div style={{ fontSize: 10, color: 'var(--text3)' }}>tap to set actual</div>}
+                            </button>
+                          )}
                         </div>
                       ))}
 
-                      <div>
-                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Variable Budgets</h4>
-                        <div className="space-y-1">
-                          {variableBudgets.map(b => (
-                            <div key={b.id} className="flex items-center justify-between py-1.5">
-                              <span className="text-sm text-gray-300">{b.category}</span>
-                              {editingVariable === b.id ? (
-                                <div className="flex items-center gap-2">
-                                  <input type="number" inputMode="decimal" step="0.01" value={editValue}
-                                    onChange={ev => setEditValue(ev.target.value)} className={editInputClass} autoFocus />
-                                  <button onClick={() => saveVariable(b.id)} className="text-red-400 text-sm font-medium">Save</button>
-                                </div>
-                              ) : (
-                                <button onClick={() => { setEditingVariable(b.id); setEditValue(String(b.budgeted)) }} className="text-sm text-white">
-                                  <CurrencyDisplay amount={Number(b.budgeted)} />
-                                </button>
-                              )}
+                      {/* Investments */}
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '16px 0 8px' }}>Investments — Actual Contributed</div>
+                      {investments.map((inv, i) => (
+                        <div key={inv.id} style={{ ...rowStyle, padding: '10px 0', borderBottom: i < investments.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          <span style={labelStyle}>{inv.vehicle}</span>
+                          {editingInvestment === inv.id ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <input type="number" inputMode="decimal" step="0.01" value={editValue}
+                                onChange={ev => setEditValue(ev.target.value)} style={inputStyle} autoFocus />
+                              <button onClick={() => saveInvestment(inv.id)} style={saveBtn}>Save</button>
                             </div>
-                          ))}
+                          ) : (
+                            <button onClick={() => { setEditingInvestment(inv.id); setEditValue(String(inv.actual ?? 0)) }}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'right' }}>
+                              <span style={{ ...valueStyle, color: inv.actual != null ? 'var(--green)' : 'var(--text3)' }}>
+                                ${(Number(inv.actual ?? 0)).toFixed(2)}
+                              </span>
+                              {inv.actual == null && <div style={{ fontSize: 10, color: 'var(--text3)' }}>tap to set actual</div>}
+                            </button>
+                          )}
                         </div>
-                      </div>
+                      ))}
 
-                      <div>
-                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Investments — Actual Contributed</h4>
-                        <div className="space-y-1">
-                          {investments.map(inv => (
-                            <div key={inv.id} className="flex items-center justify-between py-1.5">
-                              <span className="text-sm text-gray-300">{inv.vehicle}</span>
-                              {editingInvestment === inv.id ? (
-                                <div className="flex items-center gap-2">
-                                  <input type="number" inputMode="decimal" step="0.01" value={editValue}
-                                    onChange={ev => setEditValue(ev.target.value)} className={editInputClass} autoFocus />
-                                  <button onClick={() => saveInvestment(inv.id)} className="text-red-400 text-sm font-medium">Save</button>
-                                </div>
-                              ) : (
-                                <button onClick={() => { setEditingInvestment(inv.id); setEditValue(String(inv.actual ?? inv.budgeted)) }} className="text-sm text-right">
-                                  <span className={inv.actual != null ? 'text-white' : 'text-gray-500'}>
-                                    <CurrencyDisplay amount={Number(inv.actual ?? inv.budgeted)} />
-                                  </span>
-                                  {inv.actual == null && <span className="text-xs text-gray-600 ml-1">(budgeted)</span>}
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
                     </div>
                   )}
                 </div>
-              ))}
+              ))
+            )}
+          </>
+        )}
+
+        {/* ── CATEGORIES TAB ── */}
+        {activeSection === 'categories' && (
+          <>
+            {!selectedMonthId ? (
+              <div style={{ ...cardStyle, padding: 20, textAlign: 'center' }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>📅</div>
+                <div style={{ color: 'var(--text2)', fontSize: 14, marginBottom: 16 }}>Select a month to manage its categories</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {months.map(m => (
+                    <button key={m.id} onClick={() => { loadMonthDetails(m.id); }}
+                      style={{ padding: '12px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--text)', fontSize: 14, cursor: 'pointer', fontWeight: 600 }}>
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <div style={{ fontSize: 13, color: 'var(--text2)', fontWeight: 600 }}>
+                    {months.find(m => m.id === selectedMonthId)?.label}
+                  </div>
+                  <button onClick={() => setSelectedMonthId(null)} style={{ ...saveBtn, color: 'var(--text3)', fontSize: 12 }}>Change month</button>
+                </div>
+
+                <div style={cardStyle}>
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Variable Categories</span>
+                    <button onClick={() => setAddingCategory(!addingCategory)} style={{ ...saveBtn, fontSize: 13 }}>+ Add</button>
+                  </div>
+
+                  {addingCategory && (
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
+                      <input type="text" placeholder="Category name (e.g. Coffee)" value={newCategoryName}
+                        onChange={e => setNewCategoryName(e.target.value)}
+                        style={{ ...inputStyle, width: '100%', textAlign: 'left', marginBottom: 8 }} />
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <input type="number" inputMode="decimal" placeholder="Monthly budget" value={newCategoryBudget}
+                          onChange={e => setNewCategoryBudget(e.target.value)}
+                          style={{ ...inputStyle, flex: 1 }} />
+                        <button onClick={addCategory} style={{ padding: '8px 16px', background: 'var(--red)', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Add</button>
+                        <button onClick={() => setAddingCategory(false)} style={{ ...saveBtn, color: 'var(--text3)' }}>Cancel</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {variableBudgets.map((b, i) => (
+                    <div key={b.id} style={{ ...rowStyle, borderBottom: i < variableBudgets.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                      <div>
+                        <div style={labelStyle}>{b.category}</div>
+                        <div style={dimStyle}>Budget: ${Number(b.budgeted).toFixed(2)}/mo</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        {editingVariable === b.id ? (
+                          <>
+                            <input type="number" inputMode="decimal" step="0.01" value={editValue}
+                              onChange={ev => setEditValue(ev.target.value)} style={inputStyle} autoFocus />
+                            <button onClick={() => saveVariable(b.id)} style={saveBtn}>Save</button>
+                          </>
+                        ) : (
+                          <button onClick={() => { setEditingVariable(b.id); setEditValue(String(b.budgeted)) }}
+                            style={{ ...saveBtn, color: 'var(--purple)' }}>Edit</button>
+                        )}
+                        <button onClick={() => deleteCategory(b.id)}
+                          style={{ color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {/* ── ACCOUNT TAB ── */}
+        {activeSection === 'account' && (
+          <div style={cardStyle}>
+            <div style={{ ...rowStyle }}>
+              <div>
+                <div style={labelStyle}>Signed in as</div>
+                <div style={dimStyle}>{user?.email}</div>
+              </div>
+              <button onClick={handleSignOut} style={{ ...saveBtn, color: 'var(--red)' }}>Sign out</button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
       </div>
     </div>
   )
 }
 
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text3)' }}>Loading...</div>}>
+      <SettingsContent />
+    </Suspense>
+  )
+}
