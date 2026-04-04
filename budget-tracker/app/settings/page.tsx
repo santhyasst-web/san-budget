@@ -37,8 +37,10 @@ function SettingsContent() {
   const [variableBudgets, setVariableBudgets] = useState<VariableBudget[]>([])
   const [investments, setInvestments] = useState<Investment[]>([])
   const [editingFixed, setEditingFixed] = useState<string | null>(null)
+  const [editingFixedField, setEditingFixedField] = useState<'budgeted' | 'actual'>('actual')
   const [editingVariable, setEditingVariable] = useState<string | null>(null)
   const [editingInvestment, setEditingInvestment] = useState<string | null>(null)
+  const [editingInvestmentField, setEditingInvestmentField] = useState<'budgeted' | 'actual'>('actual')
   const [editValue, setEditValue] = useState('')
 
   // New category
@@ -127,8 +129,8 @@ function SettingsContent() {
   async function saveFixed(id: string) {
     const val = parseFloat(editValue)
     if (!isNaN(val)) {
-      await supabase.from('fixed_expenses').update({ actual: val }).eq('id', id)
-      setFixedExpenses(prev => prev.map(e => e.id === id ? { ...e, actual: val } : e))
+      await supabase.from('fixed_expenses').update({ [editingFixedField]: val }).eq('id', id)
+      setFixedExpenses(prev => prev.map(e => e.id === id ? { ...e, [editingFixedField]: val } : e))
     }
     setEditingFixed(null); setEditValue('')
   }
@@ -145,8 +147,8 @@ function SettingsContent() {
   async function saveInvestment(id: string) {
     const val = parseFloat(editValue)
     if (!isNaN(val)) {
-      await supabase.from('investments').update({ actual: val }).eq('id', id)
-      setInvestments(prev => prev.map(i => i.id === id ? { ...i, actual: val } : i))
+      await supabase.from('investments').update({ [editingInvestmentField]: val }).eq('id', id)
+      setInvestments(prev => prev.map(i => i.id === id ? { ...i, [editingInvestmentField]: val } : i))
     }
     setEditingInvestment(null); setEditValue('')
   }
@@ -293,47 +295,65 @@ function SettingsContent() {
                     <div style={{ padding: '12px 16px' }}>
 
                       {/* Fixed Expenses */}
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Fixed Expenses — Actual Paid</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Fixed Expenses</div>
                       {fixedExpenses.map((e, i) => (
-                        <div key={e.id} style={{ ...rowStyle, padding: '10px 0', borderBottom: i < fixedExpenses.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                          <span style={labelStyle}>{e.category}</span>
+                        <div key={e.id} style={{ padding: '10px 0', borderBottom: i < fixedExpenses.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          <div style={labelStyle}>{e.category}</div>
                           {editingFixed === e.id ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                              <span style={dimStyle}>{editingFixedField === 'budgeted' ? 'Budget:' : 'Actual:'}</span>
                               <input type="number" inputMode="decimal" step="0.01" value={editValue}
                                 onChange={ev => setEditValue(ev.target.value)} style={inputStyle} autoFocus />
                               <button onClick={() => saveFixed(e.id)} style={saveBtn}>Save</button>
+                              <button onClick={() => setEditingFixed(null)} style={{ ...saveBtn, color: 'var(--text3)' }}>✕</button>
                             </div>
                           ) : (
-                            <button onClick={() => { setEditingFixed(e.id); setEditValue(String(e.actual ?? e.budgeted)) }}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'right' }}>
-                              <span style={{ ...valueStyle, color: e.actual != null ? 'var(--text)' : 'var(--text3)' }}>
-                                ${(e.actual ?? e.budgeted).toFixed(2)}
-                              </span>
-                              {e.actual == null && <div style={{ fontSize: 10, color: 'var(--text3)' }}>tap to set actual</div>}
-                            </button>
+                            <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                              <button onClick={() => { setEditingFixed(e.id); setEditingFixedField('budgeted'); setEditValue(String(e.budgeted)) }}
+                                style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', textAlign: 'center' }}>
+                                <div style={{ fontSize: 10, color: 'var(--text3)' }}>BUDGET</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>${Number(e.budgeted).toFixed(2)}</div>
+                              </button>
+                              <button onClick={() => { setEditingFixed(e.id); setEditingFixedField('actual'); setEditValue(String(e.actual ?? e.budgeted)) }}
+                                style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', textAlign: 'center' }}>
+                                <div style={{ fontSize: 10, color: 'var(--text3)' }}>ACTUAL</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: e.actual != null ? 'var(--green)' : 'var(--text3)' }}>
+                                  {e.actual != null ? `$${Number(e.actual).toFixed(2)}` : 'not set'}
+                                </div>
+                              </button>
+                            </div>
                           )}
                         </div>
                       ))}
 
                       {/* Investments */}
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '16px 0 8px' }}>Investments — Actual Contributed</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '16px 0 8px' }}>Investments</div>
                       {investments.map((inv, i) => (
-                        <div key={inv.id} style={{ ...rowStyle, padding: '10px 0', borderBottom: i < investments.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                          <span style={labelStyle}>{inv.vehicle}</span>
+                        <div key={inv.id} style={{ padding: '10px 0', borderBottom: i < investments.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          <div style={labelStyle}>{inv.vehicle}</div>
                           {editingInvestment === inv.id ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                              <span style={dimStyle}>{editingInvestmentField === 'budgeted' ? 'Budget:' : 'Actual:'}</span>
                               <input type="number" inputMode="decimal" step="0.01" value={editValue}
                                 onChange={ev => setEditValue(ev.target.value)} style={inputStyle} autoFocus />
                               <button onClick={() => saveInvestment(inv.id)} style={saveBtn}>Save</button>
+                              <button onClick={() => setEditingInvestment(null)} style={{ ...saveBtn, color: 'var(--text3)' }}>✕</button>
                             </div>
                           ) : (
-                            <button onClick={() => { setEditingInvestment(inv.id); setEditValue(String(inv.actual ?? 0)) }}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'right' }}>
-                              <span style={{ ...valueStyle, color: inv.actual != null ? 'var(--green)' : 'var(--text3)' }}>
-                                ${(Number(inv.actual ?? 0)).toFixed(2)}
-                              </span>
-                              {inv.actual == null && <div style={{ fontSize: 10, color: 'var(--text3)' }}>tap to set actual</div>}
-                            </button>
+                            <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                              <button onClick={() => { setEditingInvestment(inv.id); setEditingInvestmentField('budgeted'); setEditValue(String(inv.budgeted)) }}
+                                style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', textAlign: 'center' }}>
+                                <div style={{ fontSize: 10, color: 'var(--text3)' }}>BUDGET</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>${Number(inv.budgeted).toFixed(2)}</div>
+                              </button>
+                              <button onClick={() => { setEditingInvestment(inv.id); setEditingInvestmentField('actual'); setEditValue(String(inv.actual ?? 0)) }}
+                                style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', textAlign: 'center' }}>
+                                <div style={{ fontSize: 10, color: 'var(--text3)' }}>ACTUAL</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: inv.actual != null ? 'var(--green)' : 'var(--text3)' }}>
+                                  {inv.actual != null ? `$${Number(inv.actual).toFixed(2)}` : 'not set'}
+                                </div>
+                              </button>
+                            </div>
                           )}
                         </div>
                       ))}
