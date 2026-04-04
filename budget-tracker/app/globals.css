@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+* { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+
+:root {
+  --bg: #0d1426;
+  --surface: #141d35;
+  --surface2: #1a2340;
+  --surface3: #1e2a4a;
+  --border: #252e4a;
+  --border2: #2e3a5c;
+  --text: #ffffff;
+  --text2: #8b9ab8;
+  --text3: #4d5a7c;
+  --red: #e5484d;
+  --red-bg: #2d1215;
+  --green: #30a46c;
+  --amber: #f59e0b;
+  --purple: #7c6fcd;
+  --orange: #f97316;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5); }
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+@keyframes slideDown {
+  from { transform: translateY(-8px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
