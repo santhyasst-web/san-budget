@@ -8,7 +8,7 @@ import { formatCAD } from '@/lib/calculations/monthlySummary'
 import Link from 'next/link'
 import type { Transaction, VariableBudget } from '@/lib/supabase/types'
 
-const WEEKS = [1, 2, 3, 4, 5]
+// WEEKS is computed dynamically from weeksInMonth below
 
 const CATEGORY_META: Record<string, { icon: string; grad: string }> = {
   'Grocery':          { icon: '🛒', grad: 'linear-gradient(135deg,#1a4a2e,#0d2e1a)' },
@@ -27,6 +27,7 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
   const [activeWeek, setActiveWeek] = useState(Math.ceil(new Date().getDate() / 7))
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [budgets, setBudgets] = useState<VariableBudget[]>([])
+  const [weeksInMonth, setWeeksInMonth] = useState(5)
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const supabase = createClient()
@@ -36,9 +37,14 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
     Promise.all([
       supabase.from('transactions').select('*').eq('month_id', monthId).order('date', { ascending: false }),
       supabase.from('variable_budget').select('*').eq('month_id', monthId),
-    ]).then(([{ data: txns }, { data: bud }]) => {
+      supabase.from('months').select('year,month').eq('id', monthId).single(),
+    ]).then(([{ data: txns }, { data: bud }, { data: mon }]) => {
       setTransactions(txns ?? [])
       setBudgets(bud ?? [])
+      if (mon) {
+        const daysInMonth = new Date(mon.year, mon.month, 0).getDate()
+        setWeeksInMonth(Math.ceil(daysInMonth / 7))
+      }
       setLoading(false)
     })
   }, [monthId])
@@ -57,7 +63,7 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
     weekCategoryActuals[t.category] = (weekCategoryActuals[t.category] ?? 0) + Number(t.amount)
   })
   const weekTotal = weekTxns.filter(t => !t.is_shared).reduce((s, t) => s + Number(t.amount), 0)
-  const weeklyBudget = (b: number) => b / 5  // divide monthly budget into 5 weeks
+  const weeklyBudget = (b: number) => b / weeksInMonth
 
   // Alerts for >75% of weekly allocation
   const alerts = budgets
@@ -88,7 +94,7 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
 
         {/* Week tabs */}
         <div style={{ maxWidth: 520, margin: '0 auto', display: 'flex', borderTop: '1px solid var(--border)', padding: '0 8px' }}>
-          {WEEKS.map(w => (
+          {Array.from({ length: weeksInMonth }, (_, i) => i + 1).map(w => (
             <button key={w} onClick={() => setActiveWeek(w)} style={{
               flex: 1, padding: '10px 0', fontSize: 11, fontWeight: 700,
               letterSpacing: '0.05em', background: 'none', border: 'none', cursor: 'pointer',
