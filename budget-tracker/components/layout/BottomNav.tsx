@@ -6,10 +6,10 @@ import { usePathname } from 'next/navigation'
 interface Props { monthId: string }
 
 const navItems = (monthId: string) => [
-  { href: `/dashboard/${monthId}`,              label: 'SUMMARY',  icon: '📊' },
+  { href: `/dashboard/${monthId}`,              label: 'SUMMARY',  icon: '📋' },
   { href: `/dashboard/${monthId}/transactions`, label: 'WEEKLY',   icon: '🗓️' },
   { href: `/add?monthId=${monthId}`,            label: 'ADD',      icon: '+',  isAdd: true },
-  { href: `/dashboard/${monthId}/shared`,       label: 'SHARED',   icon: '🤝' },
+  { href: `/dashboard/${monthId}/charts`,       label: 'CHARTS',   icon: '📊' },
   { href: `/dashboard/${monthId}/net-worth`,    label: 'WEALTH',   icon: '💎' },
 ]
 
