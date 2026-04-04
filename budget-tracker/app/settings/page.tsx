@@ -20,7 +20,9 @@ function SettingsContent() {
   const [creating, setCreating] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
+  const [user, setUser] = useState<{ id: string; email?: string; full_name?: string } | null>(null)
+  const [nameValue, setNameValue] = useState('')
+  const [savingName, setSavingName] = useState(false)
   const [activeSection, setActiveSection] = useState<'months' | 'categories' | 'account'>('months')
 
   const now = new Date()
@@ -49,7 +51,9 @@ function SettingsContent() {
   useEffect(() => {
     async function load() {
       const { data: { user: u } } = await supabase.auth.getUser()
-      setUser(u ? { id: u.id, email: u.email } : null)
+      const name = u?.user_metadata?.full_name ?? ''
+      setUser(u ? { id: u.id, email: u.email, full_name: name } : null)
+      setNameValue(name)
       if (u) {
         const { data } = await supabase.from('months').select('*').eq('user_id', u.id)
           .order('year', { ascending: false }).order('month', { ascending: false })
@@ -168,6 +172,14 @@ function SettingsContent() {
       setNewCategoryBudget('')
       setAddingCategory(false)
     }
+  }
+
+  async function saveName() {
+    if (!nameValue.trim()) return
+    setSavingName(true)
+    await supabase.auth.updateUser({ data: { full_name: nameValue.trim() } })
+    setUser(prev => prev ? { ...prev, full_name: nameValue.trim() } : prev)
+    setSavingName(false)
   }
 
   async function handleSignOut() {
@@ -417,6 +429,27 @@ function SettingsContent() {
                 <div style={dimStyle}>{user?.email}</div>
               </div>
               <button onClick={handleSignOut} style={{ ...saveBtn, color: 'var(--red)' }}>Sign out</button>
+            </div>
+            <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border)' }}>
+              <div style={{ ...dimStyle, marginBottom: 6 }}>Your name (used in app title)</div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="text"
+                  value={nameValue}
+                  onChange={e => setNameValue(e.target.value)}
+                  placeholder="Enter your first name"
+                  style={{ ...inputStyle, flex: 1, textAlign: 'left' }}
+                />
+                <button onClick={saveName} disabled={savingName || !nameValue.trim()}
+                  style={{ ...saveBtn, opacity: savingName ? 0.5 : 1 }}>
+                  {savingName ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+              {user?.full_name && (
+                <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 6 }}>
+                  App title: {user.full_name} Budget
+                </div>
+              )}
             </div>
           </div>
         )}

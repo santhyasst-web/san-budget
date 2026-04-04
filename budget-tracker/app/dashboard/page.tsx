@@ -7,6 +7,7 @@ export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+  const userName: string = user.user_metadata?.full_name ?? 'My'
 
   const { data: months } = await supabase
     .from('months')
@@ -19,7 +20,7 @@ export default async function DashboardPage() {
     <div className="min-h-screen bg-gray-900 pb-8">
       <div className="sticky top-0 bg-gray-800 border-b border-gray-700 px-4 py-4 z-10">
         <div className="flex items-center justify-between max-w-lg mx-auto">
-          <h1 className="text-xl font-bold text-white">San Budget</h1>
+          <h1 className="text-xl font-bold text-white">{userName} Budget</h1>
           <Link href="/settings" className="text-sm text-red-400 font-medium">Settings</Link>
         </div>
       </div>

@@ -53,7 +53,7 @@ export default function LoginPage() {
       <div style={{ background: 'var(--surface)', borderRadius: 20, border: '1px solid var(--border)', padding: 32, width: '100%', maxWidth: 360 }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>💰</div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', margin: 0 }}>San Budget</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Budget Tracker</h1>
           <p style={{ color: 'var(--text2)', fontSize: 14, marginTop: 4 }}>Sign in to access your budget</p>
         </div>
 
