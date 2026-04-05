@@ -13,9 +13,9 @@ export const DEFAULT_ACCOUNTS: Array<{ account_name: string; account_type: Accou
 ]
 
 export const DEFAULT_INVESTMENTS: Array<{ vehicle: string; budgeted: number }> = [
-  { vehicle: 'Mortgage Accelerated', budgeted: 500 },
-  { vehicle: 'WealthSimple', budgeted: 500 },
-  { vehicle: 'Questrade TFSA', budgeted: 2800 },
-  { vehicle: 'Questrade RRSP', budgeted: 700 },
-  { vehicle: 'Scotia', budgeted: 25 },
+  { vehicle: 'Mortgage Accelerated', budgeted: 0 },
+  { vehicle: 'WealthSimple', budgeted: 0 },
+  { vehicle: 'Questrade TFSA', budgeted: 0 },
+  { vehicle: 'Questrade RRSP', budgeted: 0 },
+  { vehicle: 'Scotia', budgeted: 0 },
 ]

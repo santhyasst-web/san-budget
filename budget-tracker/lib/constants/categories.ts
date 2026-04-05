@@ -13,15 +13,15 @@ export const VARIABLE_CATEGORIES = [
 export type VariableCategory = typeof VARIABLE_CATEGORIES[number]
 
 export const DEFAULT_VARIABLE_BUDGETS: Record<string, number> = {
-  'Grocery': 350,
-  'Outside Food': 300,
-  'Skin Care': 250,
-  'Hair Care': 20,
-  'Home Expense': 300,
-  'Misc': 400,
-  'Business Expense': 100,
-  'Uber': 500,
-  'Books': 40,
+  'Grocery': 0,
+  'Outside Food': 0,
+  'Skin Care': 0,
+  'Hair Care': 0,
+  'Home Expense': 0,
+  'Misc': 0,
+  'Business Expense': 0,
+  'Uber': 0,
+  'Books': 0,
 }
 
 export const VENDOR_SUGGESTIONS: Record<string, string[]> = {
@@ -37,13 +37,13 @@ export const VENDOR_SUGGESTIONS: Record<string, string[]> = {
 }
 
 export const DEFAULT_FIXED_EXPENSES: Array<{ category: string; budgeted: number }> = [
-  { category: 'Mortgage', budgeted: 2675.47 },
-  { category: 'Utilities', budgeted: 300 },
-  { category: 'Phone', budgeted: 36.16 },
-  { category: 'Internet', budgeted: 62.14 },
-  { category: 'YouTube Premium', budgeted: 1 },
-  { category: 'IPTV', budgeted: 8.33 },
-  { category: 'Property Tax', budgeted: 272.46 },
-  { category: 'Home Insurance', budgeted: 86.23 },
-  { category: 'Movati', budgeted: 111 },
+  { category: 'Mortgage', budgeted: 0 },
+  { category: 'Utilities', budgeted: 0 },
+  { category: 'Phone', budgeted: 0 },
+  { category: 'Internet', budgeted: 0 },
+  { category: 'YouTube Premium', budgeted: 0 },
+  { category: 'IPTV', budgeted: 0 },
+  { category: 'Property Tax', budgeted: 0 },
+  { category: 'Home Insurance', budgeted: 0 },
+  { category: 'Movati', budgeted: 0 },
 ]

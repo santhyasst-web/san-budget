@@ -28,9 +28,9 @@ function SettingsContent() {
   const now = new Date()
   const [newYear, setNewYear] = useState(now.getFullYear())
   const [newMonth, setNewMonth] = useState(now.getMonth() + 1)
-  const [salary, setSalary] = useState('9445.66')
-  const [rentIncome, setRentIncome] = useState('930')
-  const [otherIncome, setOtherIncome] = useState('0')
+  const [salary, setSalary] = useState('')
+  const [rentIncome, setRentIncome] = useState('')
+  const [otherIncome, setOtherIncome] = useState('')
 
   const [selectedMonthId, setSelectedMonthId] = useState<string | null>(monthIdParam)
   const [fixedExpenses, setFixedExpenses] = useState<FixedExpense[]>([])
