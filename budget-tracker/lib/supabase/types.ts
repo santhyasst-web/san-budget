@@ -53,6 +53,7 @@ export interface Transaction {
   notes: string | null
   is_shared: boolean
   shared_direction: SharedDirection | null
+  share_split: 'half' | 'full'
 }
 
 export interface Investment {
@@ -74,6 +75,7 @@ export interface SharedSettlement {
   amount: number
   date: string
   settled: boolean
+  transaction_id: string | null
 }
 
 export interface FixedExpenseItem {

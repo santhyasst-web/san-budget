@@ -48,6 +48,11 @@ export default function SharedPage({ params }: { params: Promise<{ monthId: stri
     setItems(prev => prev.map(i => i.id === id ? { ...i, settled: !settled } : i))
   }
 
+  async function deleteSettlement(id: string) {
+    await supabase.from('shared_settlements').delete().eq('id', id)
+    setItems(prev => prev.filter(i => i.id !== id))
+  }
+
   const fromThiyag = items.filter(i => i.direction === 'from_thiyag' && !i.settled)
   const toThiyag = items.filter(i => i.direction === 'to_thiyag' && !i.settled)
   const fromTotal = fromThiyag.reduce((s, i) => s + Number(i.amount), 0)
@@ -129,6 +134,7 @@ export default function SharedPage({ params }: { params: Promise<{ monthId: stri
                       <div className="flex items-center gap-3">
                         <span className="font-medium text-white"><CurrencyDisplay amount={Number(item.amount)} /></span>
                         <button onClick={() => toggleSettled(item.id, item.settled)} className="text-xs text-gray-500 border border-gray-600 px-2 py-0.5 rounded-full hover:border-gray-400">settle</button>
+                        <button onClick={() => deleteSettlement(item.id)} className="text-gray-600 hover:text-red-400 text-lg leading-none px-1">×</button>
                       </div>
                     </div>
                   ))

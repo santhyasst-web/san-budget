@@ -22,6 +22,7 @@ function AddTransactionForm() {
   const [notes, setNotes] = useState('')
   const [isShared, setIsShared] = useState(false)
   const [sharedDirection, setSharedDirection] = useState<'from_thiyag' | 'to_thiyag'>('from_thiyag')
+  const [shareSplit, setShareSplit] = useState<'half' | 'full'>('half')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [vendorSuggestions, setVendorSuggestions] = useState<string[]>([])
@@ -95,6 +96,7 @@ function AddTransactionForm() {
       subcategory: subcategory.trim(), amount: amountNum,
       notes: notes.trim() || null, is_shared: isShared,
       shared_direction: isShared ? sharedDirection : null,
+      share_split: isShared ? shareSplit : 'half',
     }).select().single()
 
     if (insertError || !txn) { setError(insertError?.message ?? 'Failed to save'); setLoading(false); return }
@@ -115,9 +117,13 @@ function AddTransactionForm() {
     }
 
     if (isShared) {
+      const settlementAmount = shareSplit === 'full' ? amountNum : amountNum / 2
       await supabase.from('shared_settlements').insert({
         user_id: user.id, month_id: monthId, direction: sharedDirection,
-        description: subcategory.trim() || category, amount: amountNum / 2, date, settled: false,
+        description: subcategory.trim() || category,
+        amount: settlementAmount,
+        date, settled: false,
+        transaction_id: txn.id,
       })
     }
 
@@ -268,13 +274,28 @@ function AddTransactionForm() {
             </button>
           </div>
           {isShared && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
-              {(['from_thiyag', 'to_thiyag'] as const).map(dir => (
-                <button key={dir} type="button" onClick={() => setSharedDirection(dir)}
-                  style={{ padding: '10px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', border: `1px solid ${sharedDirection === dir ? 'var(--red)' : 'var(--border)'}`, background: sharedDirection === dir ? 'var(--red-dim)' : 'var(--surface2)', color: sharedDirection === dir ? 'var(--red)' : 'var(--text3)' }}>
-                  {dir === 'from_thiyag' ? '💳 I paid' : '🤝 Thiyag paid'}
-                </button>
-              ))}
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Who paid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {(['from_thiyag', 'to_thiyag'] as const).map(dir => (
+                  <button key={dir} type="button" onClick={() => setSharedDirection(dir)}
+                    style={{ padding: '10px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', border: `1px solid ${sharedDirection === dir ? 'var(--red)' : 'var(--border)'}`, background: sharedDirection === dir ? 'var(--red-dim)' : 'var(--surface2)', color: sharedDirection === dir ? 'var(--red)' : 'var(--text3)' }}>
+                    {dir === 'from_thiyag' ? '💳 I paid' : '🤝 Thiyag paid'}
+                  </button>
+                ))}
+              </div>
+              {/* Split type */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {(['half', 'full'] as const).map(split => (
+                  <button key={split} type="button" onClick={() => setShareSplit(split)}
+                    style={{ padding: '10px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', border: `1px solid ${shareSplit === split ? 'var(--purple)' : 'var(--border)'}`, background: shareSplit === split ? 'rgba(139,92,246,0.15)' : 'var(--surface2)', color: shareSplit === split ? '#a78bfa' : 'var(--text3)' }}>
+                    {split === 'half' ? '½ Split 50%' : '💯 Full amount'}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center' }}>
+                {shareSplit === 'half' ? `$${(parseFloat(amount || '0') / 2).toFixed(2)} goes to Thiyag ledger` : `$${parseFloat(amount || '0').toFixed(2)} goes to Thiyag ledger`}
+              </div>
             </div>
           )}
         </div>

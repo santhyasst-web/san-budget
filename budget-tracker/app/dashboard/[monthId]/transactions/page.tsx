@@ -32,6 +32,10 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [expandedTxn, setExpandedTxn] = useState<string | null>(null)
   const [txnItems, setTxnItems] = useState<Record<string, TransactionItem[]>>({})
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState<{ subcategory: string; amount: string; date: string; is_shared: boolean; shared_direction: 'from_thiyag' | 'to_thiyag'; share_split: 'half' | 'full' } | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -56,6 +60,70 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
     await supabase.from('transactions').delete().eq('id', id)
     setTransactions(prev => prev.filter(t => t.id !== id))
     setDeletingId(null)
+  }
+
+  function startEdit(t: Transaction) {
+    setEditingId(t.id)
+    setEditDraft({
+      subcategory: t.subcategory ?? '',
+      amount: String(t.amount),
+      date: t.date,
+      is_shared: t.is_shared,
+      shared_direction: t.shared_direction ?? 'from_thiyag',
+      share_split: t.share_split ?? 'half',
+    })
+  }
+
+  async function saveEdit(t: Transaction) {
+    if (!editDraft) return
+    setSavingEdit(true)
+    const amountNum = parseFloat(editDraft.amount)
+    if (isNaN(amountNum) || amountNum <= 0) { setSavingEdit(false); return }
+
+    const weekNum = Math.ceil(new Date(editDraft.date).getDate() / 7)
+    await supabase.from('transactions').update({
+      subcategory: editDraft.subcategory.trim(),
+      amount: amountNum,
+      date: editDraft.date,
+      week_number: weekNum,
+      is_shared: editDraft.is_shared,
+      shared_direction: editDraft.is_shared ? editDraft.shared_direction : null,
+      share_split: editDraft.is_shared ? editDraft.share_split : 'half',
+    }).eq('id', t.id)
+
+    // Sync shared_settlements: delete old (if any) and insert new
+    if (t.is_shared || editDraft.is_shared) {
+      await supabase.from('shared_settlements').delete().eq('transaction_id', t.id)
+      if (editDraft.is_shared) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const settlementAmount = editDraft.share_split === 'full' ? amountNum : amountNum / 2
+          await supabase.from('shared_settlements').insert({
+            user_id: user.id, month_id: monthId,
+            direction: editDraft.shared_direction,
+            description: editDraft.subcategory.trim() || t.category,
+            amount: settlementAmount, date: editDraft.date,
+            settled: false, transaction_id: t.id,
+          })
+        }
+      }
+    }
+
+    // Update local state
+    setTransactions(prev => prev.map(tx => tx.id === t.id ? {
+      ...tx,
+      subcategory: editDraft.subcategory.trim(),
+      amount: amountNum,
+      date: editDraft.date,
+      week_number: weekNum,
+      is_shared: editDraft.is_shared,
+      shared_direction: editDraft.is_shared ? editDraft.shared_direction : null,
+      share_split: editDraft.is_shared ? editDraft.share_split : 'half',
+    } : tx))
+
+    setEditingId(null)
+    setEditDraft(null)
+    setSavingEdit(false)
   }
 
   async function toggleExpand(txnId: string) {
@@ -195,8 +263,11 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
                   const items = txnItems[t.id]
                   const isExpanded = expandedTxn === t.id
                   const hasItems = items && items.length > 0
+                  const isEditing = editingId === t.id
+                  const sharedLabel = t.is_shared ? (t.share_split === 'full' ? '💯 SHARED' : '½ SHARED') : null
                   return (
                     <div key={t.id} style={{ borderBottom: i < weekTxns.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                      {/* Main row */}
                       <div style={{
                         display: 'flex', alignItems: 'center', padding: '13px 14px',
                         opacity: deletingId === t.id ? 0.3 : 1, transition: 'opacity 0.2s',
@@ -212,19 +283,82 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
                             <span>{t.category}</span>
                             <span>·</span>
                             <span>{t.date}</span>
-                            {t.is_shared && <span style={{ background: '#1e3a5f', color: '#60a5fa', borderRadius: 5, padding: '1px 6px', fontSize: 10, fontWeight: 600 }}>½ SHARED</span>}
+                            {sharedLabel && <span style={{ background: '#1e3a5f', color: '#60a5fa', borderRadius: 5, padding: '1px 6px', fontSize: 10, fontWeight: 600 }}>{sharedLabel}</span>}
                             <button onClick={() => toggleExpand(t.id)}
                               style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 5, padding: '1px 6px', fontSize: 10, fontWeight: 600, cursor: 'pointer', color: 'var(--text3)' }}>
                               {isExpanded ? '▾ hide' : hasItems ? `▸ ${items.length} items` : '▸ items'}
                             </button>
                           </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 8 }}>
                           <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>{formatCAD(Number(t.amount))}</span>
+                          <button onClick={() => isEditing ? (setEditingId(null), setEditDraft(null)) : startEdit(t)}
+                            style={{ color: isEditing ? 'var(--purple)' : 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, padding: '2px 4px', lineHeight: 1 }}>✏️</button>
                           <button onClick={() => handleDelete(t.id)} disabled={deletingId === t.id}
                             style={{ color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, padding: '2px 4px', lineHeight: 1 }}>×</button>
                         </div>
                       </div>
+
+                      {/* Inline edit panel */}
+                      {isEditing && editDraft && (
+                        <div style={{ background: 'var(--bg)', borderTop: '1px solid var(--border)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Vendor</div>
+                              <input type="text" value={editDraft.subcategory} onChange={e => setEditDraft(d => d && ({ ...d, subcategory: e.target.value }))}
+                                style={{ width: '100%', padding: '8px 10px', borderRadius: 8, fontSize: 13, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', outline: 'none' }} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Amount</div>
+                              <input type="number" inputMode="decimal" value={editDraft.amount} onChange={e => setEditDraft(d => d && ({ ...d, amount: e.target.value }))}
+                                style={{ width: '100%', padding: '8px 10px', borderRadius: 8, fontSize: 13, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', outline: 'none' }} />
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Date</div>
+                            <input type="date" value={editDraft.date} onChange={e => setEditDraft(d => d && ({ ...d, date: e.target.value }))}
+                              style={{ width: '100%', padding: '8px 10px', borderRadius: 8, fontSize: 13, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', outline: 'none' }} />
+                          </div>
+                          {/* Shared toggle */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Shared with Thiyag</span>
+                            <button type="button" onClick={() => setEditDraft(d => d && ({ ...d, is_shared: !d.is_shared }))}
+                              style={{ width: 44, height: 26, borderRadius: 13, background: editDraft.is_shared ? 'var(--red)' : 'var(--surface2)', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                              <span style={{ position: 'absolute', top: 3, width: 20, height: 20, background: '#fff', borderRadius: '50%', transition: 'transform 0.2s', transform: editDraft.is_shared ? 'translateX(20px)' : 'translateX(3px)', display: 'block' }} />
+                            </button>
+                          </div>
+                          {editDraft.is_shared && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                                {(['from_thiyag', 'to_thiyag'] as const).map(dir => (
+                                  <button key={dir} type="button" onClick={() => setEditDraft(d => d && ({ ...d, shared_direction: dir }))}
+                                    style={{ padding: '8px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: `1px solid ${editDraft.shared_direction === dir ? 'var(--red)' : 'var(--border)'}`, background: editDraft.shared_direction === dir ? 'var(--red-dim)' : 'var(--surface2)', color: editDraft.shared_direction === dir ? 'var(--red)' : 'var(--text3)' }}>
+                                    {dir === 'from_thiyag' ? '💳 I paid' : '🤝 Thiyag paid'}
+                                  </button>
+                                ))}
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                                {(['half', 'full'] as const).map(split => (
+                                  <button key={split} type="button" onClick={() => setEditDraft(d => d && ({ ...d, share_split: split }))}
+                                    style={{ padding: '8px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: `1px solid ${editDraft.share_split === split ? '#7c3aed' : 'var(--border)'}`, background: editDraft.share_split === split ? 'rgba(139,92,246,0.15)' : 'var(--surface2)', color: editDraft.share_split === split ? '#a78bfa' : 'var(--text3)' }}>
+                                    {split === 'half' ? '½ Split 50%' : '💯 Full'}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                            <button onClick={() => { setEditingId(null); setEditDraft(null) }}
+                              style={{ padding: '10px', borderRadius: 10, border: '1px solid var(--border)', background: 'none', color: 'var(--text3)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                            <button onClick={() => saveEdit(t)} disabled={savingEdit}
+                              style={{ padding: '10px', borderRadius: 10, border: 'none', background: 'var(--red)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: savingEdit ? 0.5 : 1 }}>
+                              {savingEdit ? 'Saving...' : 'Save'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Items expansion */}
                       {isExpanded && items && items.length > 0 && (
                         <div style={{ background: 'var(--bg)', borderTop: '1px solid var(--border)', padding: '4px 14px 8px 70px' }}>
                           {items.map((item, idx) => (
