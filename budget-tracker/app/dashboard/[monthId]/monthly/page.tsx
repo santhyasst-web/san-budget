@@ -134,7 +134,7 @@ export default function MonthlyPage({ params }: { params: Promise<{ monthId: str
       ] = await Promise.all([
         supabase.from('months').select('*').eq('id', monthId).single(),
         supabase.from('fixed_expenses').select('*').eq('month_id', monthId).order('category'),
-        supabase.from('fixed_expense_items').select('*').eq('month_id', monthId).order('label').catch(() => ({ data: [] })),
+        supabase.from('fixed_expense_items').select('*').eq('month_id', monthId).order('label'),
         supabase.from('variable_budget').select('*').eq('month_id', monthId).order('category'),
         supabase.from('transactions').select('*').eq('month_id', monthId),
         supabase.from('investments').select('*').eq('month_id', monthId).order('vehicle'),
