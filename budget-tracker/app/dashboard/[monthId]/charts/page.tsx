@@ -260,7 +260,7 @@ export default function ChartsPage({ params }: { params: Promise<{ monthId: stri
       <div style={{ maxWidth: 520, margin: '0 auto', padding: '14px 14px 0' }}>
 
         {/* ── Income Allocation Donut ── */}
-        <SectionHeader title="INCOME ALLOCATION" />
+        <SectionHeader title="EXPENSE SPLIT" />
         <Card>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <DonutChart

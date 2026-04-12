@@ -6,7 +6,7 @@ import { BottomNav } from '@/components/layout/BottomNav'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { formatCAD } from '@/lib/calculations/monthlySummary'
 import Link from 'next/link'
-import type { Transaction, VariableBudget } from '@/lib/supabase/types'
+import type { Transaction, VariableBudget, TransactionItem } from '@/lib/supabase/types'
 
 // WEEKS is computed dynamically from weeksInMonth below
 
@@ -30,6 +30,8 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
   const [weeksInMonth, setWeeksInMonth] = useState(5)
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [expandedTxn, setExpandedTxn] = useState<string | null>(null)
+  const [txnItems, setTxnItems] = useState<Record<string, TransactionItem[]>>({})
   const supabase = createClient()
 
   useEffect(() => {
@@ -56,13 +58,23 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
     setDeletingId(null)
   }
 
+  async function toggleExpand(txnId: string) {
+    if (expandedTxn === txnId) { setExpandedTxn(null); return }
+    setExpandedTxn(txnId)
+    if (!txnItems[txnId]) {
+      const { data } = await supabase.from('transaction_items').select('*').eq('transaction_id', txnId).order('label')
+      setTxnItems(prev => ({ ...prev, [txnId]: (data as TransactionItem[] | null) ?? [] }))
+    }
+  }
+
   const weekTxns = transactions.filter(t => t.week_number === activeWeek)
-  // Per-week actuals (only this week, only non-shared)
+  // Per-week actuals (shared counts at 50%)
   const weekCategoryActuals: Record<string, number> = {}
-  weekTxns.filter(t => !t.is_shared).forEach(t => {
-    weekCategoryActuals[t.category] = (weekCategoryActuals[t.category] ?? 0) + Number(t.amount)
+  weekTxns.forEach(t => {
+    const amt = t.is_shared ? Number(t.amount) * 0.5 : Number(t.amount)
+    weekCategoryActuals[t.category] = (weekCategoryActuals[t.category] ?? 0) + amt
   })
-  const weekTotal = weekTxns.filter(t => !t.is_shared).reduce((s, t) => s + Number(t.amount), 0)
+  const weekTotal = weekTxns.reduce((s, t) => s + (t.is_shared ? Number(t.amount) * 0.5 : Number(t.amount)), 0)
   const weeklyBudget = (b: number) => b / weeksInMonth
 
   // Alerts for >75% of weekly allocation
@@ -153,12 +165,15 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
               </div>
             ))}
 
-            {/* Week header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 2px' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                WEEK {activeWeek} · {weekTxns.length} item{weekTxns.length !== 1 ? 's' : ''}
-              </span>
-              {weekTotal > 0 && <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>{formatCAD(weekTotal)}</span>}
+            {/* Week total card */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Week {activeWeek} · {weekTxns.length} transaction{weekTxns.length !== 1 ? 's' : ''}
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: weekTotal > 0 ? 'var(--text)' : 'var(--text3)', marginTop: 4 }}>
+                {weekTotal > 0 ? formatCAD(weekTotal) : '$0.00'}
+                <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text3)', marginLeft: 6 }}>spent this week</span>
+              </div>
             </div>
 
             {/* Transactions list */}
@@ -177,31 +192,55 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
               <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
                 {weekTxns.map((t, i) => {
                   const meta = CATEGORY_META[t.category] ?? { icon: '•', grad: 'var(--surface2)' }
+                  const items = txnItems[t.id]
+                  const isExpanded = expandedTxn === t.id
+                  const hasItems = items && items.length > 0
                   return (
-                    <div key={t.id} style={{
-                      display: 'flex', alignItems: 'center', padding: '13px 14px',
-                      borderBottom: i < weekTxns.length - 1 ? '1px solid var(--border)' : 'none',
-                      opacity: deletingId === t.id ? 0.3 : 1, transition: 'opacity 0.2s',
-                    }}>
-                      <div style={{ width: 44, height: 44, borderRadius: 13, background: meta.grad, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0, marginRight: 12 }}>
-                        {meta.icon}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {t.subcategory || t.category}
+                    <div key={t.id} style={{ borderBottom: i < weekTxns.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', padding: '13px 14px',
+                        opacity: deletingId === t.id ? 0.3 : 1, transition: 'opacity 0.2s',
+                      }}>
+                        <div style={{ width: 44, height: 44, borderRadius: 13, background: meta.grad, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0, marginRight: 12 }}>
+                          {meta.icon}
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
-                          <span>{t.category}</span>
-                          <span>·</span>
-                          <span>{t.date}</span>
-                          {t.is_shared && <span style={{ background: '#1e3a5f', color: '#60a5fa', borderRadius: 5, padding: '1px 6px', fontSize: 10, fontWeight: 600 }}>SHARED</span>}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {t.subcategory || t.category}
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                            <span>{t.category}</span>
+                            <span>·</span>
+                            <span>{t.date}</span>
+                            {t.is_shared && <span style={{ background: '#1e3a5f', color: '#60a5fa', borderRadius: 5, padding: '1px 6px', fontSize: 10, fontWeight: 600 }}>½ SHARED</span>}
+                            <button onClick={() => toggleExpand(t.id)}
+                              style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 5, padding: '1px 6px', fontSize: 10, fontWeight: 600, cursor: 'pointer', color: 'var(--text3)' }}>
+                              {isExpanded ? '▾ hide' : hasItems ? `▸ ${items.length} items` : '▸ items'}
+                            </button>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 8 }}>
+                          <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>{formatCAD(Number(t.amount))}</span>
+                          <button onClick={() => handleDelete(t.id)} disabled={deletingId === t.id}
+                            style={{ color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, padding: '2px 4px', lineHeight: 1 }}>×</button>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 8 }}>
-                        <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>{formatCAD(Number(t.amount))}</span>
-                        <button onClick={() => handleDelete(t.id)} disabled={deletingId === t.id}
-                          style={{ color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, padding: '2px 4px', lineHeight: 1 }}>×</button>
-                      </div>
+                      {isExpanded && items && items.length > 0 && (
+                        <div style={{ background: 'var(--bg)', borderTop: '1px solid var(--border)', padding: '4px 14px 8px 70px' }}>
+                          {items.map((item, idx) => (
+                            <div key={item.id} style={{ display: 'flex', alignItems: 'center', padding: '5px 0' }}>
+                              <span style={{ color: 'var(--text3)', marginRight: 8, fontSize: 12 }}>{idx === items.length - 1 ? '└' : '├'}</span>
+                              <span style={{ flex: 1, fontSize: 12, color: 'var(--text2)' }}>{item.label}</span>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{formatCAD(Number(item.amount))}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {isExpanded && items && items.length === 0 && (
+                        <div style={{ background: 'var(--bg)', borderTop: '1px solid var(--border)', padding: '8px 14px 8px 70px', fontSize: 12, color: 'var(--text3)' }}>
+                          No items recorded for this transaction.
+                        </div>
+                      )}
                     </div>
                   )
                 })}

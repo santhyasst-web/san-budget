@@ -15,9 +15,9 @@ export function computeMonthlySummary(
   const totalFixedActual = fixedExpenses.reduce((sum, e) => sum + (e.actual ?? 0), 0)
 
   const totalVariableBudgeted = variableBudgets.reduce((sum, b) => sum + b.budgeted, 0)
+  const eff = (t: Transaction) => t.is_shared ? t.amount * 0.5 : t.amount
   const totalVariableActual = transactions
-    .filter(t => !t.is_shared)
-    .reduce((sum, t) => sum + t.amount, 0)
+    .reduce((sum, t) => sum + eff(t), 0)
 
   const totalInvestmentsBudgeted = investments.reduce((sum, i) => sum + i.budgeted, 0)
   const totalInvestmentsActual = investments.reduce((sum, i) => sum + (i.actual ?? 0), 0)
@@ -48,11 +48,10 @@ export function computeMonthlySummary(
 
 export function getVariableActualByCategory(transactions: Transaction[]): Record<string, number> {
   const result: Record<string, number> = {}
-  transactions
-    .filter(t => !t.is_shared)
-    .forEach(t => {
-      result[t.category] = (result[t.category] ?? 0) + t.amount
-    })
+  transactions.forEach(t => {
+    const amt = t.is_shared ? t.amount * 0.5 : t.amount
+    result[t.category] = (result[t.category] ?? 0) + amt
+  })
   return result
 }
 

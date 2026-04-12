@@ -9,7 +9,7 @@ const navItems = (monthId: string) => [
   { href: `/dashboard/${monthId}/monthly`,       label: 'MONTHLY',  icon: '📋' },
   { href: `/dashboard/${monthId}/transactions`, label: 'WEEKLY',   icon: '🗓️' },
   { href: `/add?monthId=${monthId}`,            label: 'ADD',      icon: '+',  isAdd: true },
-  { href: `/dashboard/${monthId}/charts`,       label: 'CHARTS',   icon: '📊' },
+  { href: `/dashboard/${monthId}/shared`,       label: 'SHARED',   icon: '🤝' },
   { href: `/dashboard/${monthId}/net-worth`,    label: 'WEALTH',   icon: '💎' },
 ]
 

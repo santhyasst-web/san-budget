@@ -1,8 +1,13 @@
-import { redirect, notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+'use client'
+
+import { use, useEffect, useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { BottomNav } from '@/components/layout/BottomNav'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { computeMonthlySummary, getVariableActualByCategory, getMonthName, formatCAD } from '@/lib/calculations/monthlySummary'
+import type { FixedExpense, VariableBudget, Transaction, Investment } from '@/lib/supabase/types'
+import type { FixedExpenseItem } from '@/lib/supabase/types'
 import Link from 'next/link'
 
 const CATEGORY_ICONS: Record<string, { icon: string; grad: string }> = {
@@ -40,43 +45,196 @@ function IconBox({ category }: { category: string }) {
   )
 }
 
-export default async function MonthlyPage({ params }: { params: Promise<{ monthId: string }> }) {
-  const { monthId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+// Inline editable number field — taps to edit, blurs to save
+function InlineAmount({
+  value,
+  onSave,
+  label,
+}: {
+  value: number | null
+  onSave: (v: number | null) => Promise<void>
+  label?: string
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const [
-    { data: month },
-    { data: fixedExpenses },
-    { data: variableBudgets },
-    { data: transactions },
-    { data: investments },
-  ] = await Promise.all([
-    supabase.from('months').select('*').eq('id', monthId).eq('user_id', user.id).single(),
-    supabase.from('fixed_expenses').select('*').eq('month_id', monthId).order('category'),
-    supabase.from('variable_budget').select('*').eq('month_id', monthId).order('category'),
-    supabase.from('transactions').select('*').eq('month_id', monthId),
-    supabase.from('investments').select('*').eq('month_id', monthId).order('vehicle'),
-  ])
+  function startEdit() {
+    setDraft(value != null ? String(value) : '')
+    setEditing(true)
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }
 
-  if (!month) notFound()
+  async function commit() {
+    setEditing(false)
+    const num = draft === '' ? null : parseFloat(draft)
+    if (num !== value) await onSave(isNaN(num as number) ? null : num)
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="number"
+        inputMode="decimal"
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => e.key === 'Enter' && commit()}
+        style={{
+          width: 80, padding: '4px 8px', fontSize: 13, fontWeight: 700,
+          background: 'var(--surface2)', border: '1px solid var(--red)',
+          borderRadius: 8, color: 'var(--text)', outline: 'none', textAlign: 'right',
+        }}
+      />
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={startEdit}
+      title={`Edit ${label ?? 'amount'}`}
+      style={{
+        background: 'none', border: '1px solid var(--border)', borderRadius: 8,
+        padding: '3px 8px', fontSize: 13, fontWeight: 700, color: 'var(--text2)',
+        cursor: 'pointer', minWidth: 64, textAlign: 'right',
+      }}
+    >
+      {value != null ? formatCAD(value) : <span style={{ color: 'var(--text3)', fontWeight: 400 }}>—</span>}
+    </button>
+  )
+}
+
+export default function MonthlyPage({ params }: { params: Promise<{ monthId: string }> }) {
+  const { monthId } = use(params)
+  const supabase = createClient()
+
+  const [month, setMonth] = useState<{ id: string; year: number; month: number; salary: number; rent_income: number; other_income: number } | null>(null)
+  const [fixedExpenses, setFixedExpenses] = useState<FixedExpense[]>([])
+  const [fixedItems, setFixedItems] = useState<FixedExpenseItem[]>([])
+  const [variableBudgets, setVariableBudgets] = useState<VariableBudget[]>([])
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [investments, setInvestments] = useState<Investment[]>([])
+  const [loading, setLoading] = useState(true)
+  // sub-item add state: { fixedExpenseId, label, amount }
+  const [addingItemFor, setAddingItemFor] = useState<string | null>(null)
+  const [newItemLabel, setNewItemLabel] = useState('')
+  const [newItemAmount, setNewItemAmount] = useState('')
+
+  useEffect(() => {
+    async function load() {
+      const [
+        { data: m },
+        { data: fe },
+        { data: fi },
+        { data: vb },
+        { data: txns },
+        { data: inv },
+      ] = await Promise.all([
+        supabase.from('months').select('*').eq('id', monthId).single(),
+        supabase.from('fixed_expenses').select('*').eq('month_id', monthId).order('category'),
+        supabase.from('fixed_expense_items').select('*').eq('month_id', monthId).order('label').catch(() => ({ data: [] })),
+        supabase.from('variable_budget').select('*').eq('month_id', monthId).order('category'),
+        supabase.from('transactions').select('*').eq('month_id', monthId),
+        supabase.from('investments').select('*').eq('month_id', monthId).order('vehicle'),
+      ])
+      setMonth(m)
+      setFixedExpenses(fe ?? [])
+      setFixedItems((fi as FixedExpenseItem[] | null) ?? [])
+      setVariableBudgets(vb ?? [])
+      setTransactions(txns ?? [])
+      setInvestments(inv ?? [])
+      setLoading(false)
+    }
+    load()
+  }, [monthId])
+
+  // Fetch fixed_expense_items — table may not exist yet
+  async function reloadFixedItems() {
+    const { data } = await supabase.from('fixed_expense_items').select('*').eq('month_id', monthId).order('label')
+    setFixedItems((data as FixedExpenseItem[] | null) ?? [])
+  }
+
+  async function saveFixedBudget(id: string, val: number | null) {
+    await supabase.from('fixed_expenses').update({ budgeted: val ?? 0 }).eq('id', id)
+    setFixedExpenses(prev => prev.map(e => e.id === id ? { ...e, budgeted: val ?? 0 } : e))
+  }
+
+  async function saveFixedActual(id: string, val: number | null) {
+    await supabase.from('fixed_expenses').update({ actual: val }).eq('id', id)
+    setFixedExpenses(prev => prev.map(e => e.id === id ? { ...e, actual: val } : e))
+  }
+
+  async function saveInvestmentBudget(id: string, val: number | null) {
+    await supabase.from('investments').update({ budgeted: val ?? 0 }).eq('id', id)
+    setInvestments(prev => prev.map(i => i.id === id ? { ...i, budgeted: val ?? 0 } : i))
+  }
+
+  async function saveInvestmentActual(id: string, val: number | null) {
+    await supabase.from('investments').update({ actual: val }).eq('id', id)
+    setInvestments(prev => prev.map(i => i.id === id ? { ...i, actual: val } : i))
+  }
+
+  async function addFixedItem(fixedExpenseId: string) {
+    const amt = parseFloat(newItemAmount)
+    if (!newItemLabel.trim() || isNaN(amt)) return
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    // Need month_id on fixed_expense_items — fetch from fixed_expense
+    await supabase.from('fixed_expense_items').insert({
+      user_id: user.id,
+      fixed_expense_id: fixedExpenseId,
+      month_id: monthId,
+      label: newItemLabel.trim(),
+      amount: amt,
+    })
+    setNewItemLabel('')
+    setNewItemAmount('')
+    setAddingItemFor(null)
+    await reloadFixedItems()
+    // Update actual on the parent fixed expense to be sum of items
+    const items = [...fixedItems.filter(i => i.fixed_expense_id === fixedExpenseId), { label: newItemLabel.trim(), amount: amt } as FixedExpenseItem]
+    const total = items.reduce((s, i) => s + Number(i.amount), 0)
+    await saveFixedActual(fixedExpenseId, total)
+  }
+
+  async function deleteFixedItem(item: FixedExpenseItem) {
+    await supabase.from('fixed_expense_items').delete().eq('id', item.id)
+    const remaining = fixedItems.filter(i => i.id !== item.id && i.fixed_expense_id === item.fixed_expense_id)
+    const total = remaining.reduce((s, i) => s + Number(i.amount), 0)
+    await saveFixedActual(item.fixed_expense_id, remaining.length > 0 ? total : null)
+    await reloadFixedItems()
+  }
+
+  if (loading || !month) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: 'var(--text3)' }}>Loading...</div>
+      </div>
+    )
+  }
 
   const summary = computeMonthlySummary(
     Number(month.salary), Number(month.rent_income), Number(month.other_income),
-    fixedExpenses ?? [], variableBudgets ?? [], transactions ?? [], investments ?? []
+    fixedExpenses, variableBudgets, transactions, investments
   )
-  const variableActuals = getVariableActualByCategory(transactions ?? [])
+  const variableActuals = getVariableActualByCategory(transactions)
   const remainingPct = Math.max(0, 100 - summary.fundamentals_pct - summary.investments_pct)
   const totalSpentPct = summary.total_income > 0 ? Math.min((summary.total_actual / summary.total_income) * 100, 100) : 0
 
-  const alerts: Array<{ msg: string; type: 'warn' | 'danger' }> = [];
-  (variableBudgets ?? []).forEach(b => {
+  const alerts: Array<{ msg: string; type: 'warn' | 'danger' }> = []
+  variableBudgets.forEach(b => {
     const actual = variableActuals[b.category] ?? 0
     const pct = Number(b.budgeted) > 0 ? (actual / Number(b.budgeted)) * 100 : 0
     if (pct >= 100) alerts.push({ msg: `⚡ ${b.category} exceeded! (${formatCAD(actual)} / ${formatCAD(Number(b.budgeted))})`, type: 'danger' })
     else if (pct >= 75) alerts.push({ msg: `⚠️ ${b.category} at ${pct.toFixed(0)}% — ${formatCAD(Number(b.budgeted) - actual)} left`, type: 'warn' })
   })
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase',
+    letterSpacing: '0.06em', marginBottom: 2,
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', paddingBottom: 72 }}>
@@ -121,16 +279,16 @@ export default async function MonthlyPage({ params }: { params: Promise<{ monthI
             borderRadius: 14, padding: '13px 16px', marginBottom: 10,
             background: alert.type === 'danger' ? 'linear-gradient(135deg,#7a1a1a,#4a0d0d)' : 'linear-gradient(135deg,#7a4a00,#4a2d00)',
             border: `1px solid ${alert.type === 'danger' ? '#a03030' : '#9a6010'}`,
-            fontSize: 13, fontWeight: 600, color: '#fff', animation: 'slideDown 0.3s ease',
+            fontSize: 13, fontWeight: 600, color: '#fff',
           }}>{alert.msg}</div>
         ))}
 
         {/* Variable categories */}
-        {(variableBudgets ?? []).length > 0 && (
+        {variableBudgets.length > 0 && (
           <>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '16px 2px 10px' }}>VARIABLE EXPENSES</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {(variableBudgets ?? []).map(b => {
+              {variableBudgets.map(b => {
                 const actual = variableActuals[b.category] ?? 0
                 const pct = Number(b.budgeted) > 0 ? (actual / Number(b.budgeted)) * 100 : 0
                 const statusColor = pct >= 100 ? 'var(--red)' : pct >= 75 ? 'var(--orange)' : 'var(--text3)'
@@ -157,36 +315,102 @@ export default async function MonthlyPage({ params }: { params: Promise<{ monthI
         )}
 
         {/* Fixed expenses */}
-        {(fixedExpenses ?? []).length > 0 && (
+        {fixedExpenses.length > 0 && (
           <>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '20px 2px 10px' }}>
               FIXED EXPENSES · {formatCAD(summary.total_fixed_budgeted)}/mo
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {(fixedExpenses ?? []).map(e => (
-                <div key={e.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <IconBox category={e.category} />
-                  <div style={{ flex: 1 }}>
-                    <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{e.category}</span>
+              {fixedExpenses.map(e => {
+                const items = fixedItems.filter(i => i.fixed_expense_id === e.id)
+                const hasItems = items.length > 0
+                const displayActual = hasItems
+                  ? items.reduce((s, i) => s + Number(i.amount), 0)
+                  : (e.actual ?? null)
+                return (
+                  <div key={e.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
+                    {/* Parent row */}
+                    <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <IconBox category={e.category} />
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{e.category}</span>
+                      </div>
+                      {/* Budget field */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                        <div style={labelStyle}>Budget</div>
+                        <InlineAmount value={Number(e.budgeted)} onSave={v => saveFixedBudget(e.id, v)} label="budget" />
+                      </div>
+                      {/* Actual field — if has items show sum (not editable here), else editable */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                        <div style={labelStyle}>Actual</div>
+                        {hasItems ? (
+                          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', minWidth: 64, textAlign: 'right' }}>
+                            {formatCAD(displayActual ?? 0)}
+                          </span>
+                        ) : (
+                          <InlineAmount value={e.actual} onSave={v => saveFixedActual(e.id, v)} label="actual" />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Sub-items */}
+                    {hasItems && (
+                      <div style={{ borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
+                        {items.map((item, idx) => (
+                          <div key={item.id} style={{
+                            display: 'flex', alignItems: 'center', padding: '9px 14px 9px 66px',
+                            borderBottom: idx < items.length - 1 ? '1px solid var(--border)' : 'none',
+                          }}>
+                            <span style={{ color: 'var(--text3)', marginRight: 8, fontSize: 12 }}>{idx === items.length - 1 ? '└' : '├'}</span>
+                            <span style={{ flex: 1, fontSize: 13, color: 'var(--text2)' }}>{item.label}</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{formatCAD(Number(item.amount))}</span>
+                            <button onClick={() => deleteFixedItem(item)}
+                              style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 16, padding: '0 0 0 10px', lineHeight: 1 }}>×</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Add entry row */}
+                    {addingItemFor === e.id ? (
+                      <div style={{ borderTop: '1px solid var(--border)', padding: '10px 14px', display: 'flex', gap: 8, alignItems: 'center', background: 'var(--bg)' }}>
+                        <input
+                          type="text" value={newItemLabel} onChange={ev => setNewItemLabel(ev.target.value)}
+                          placeholder="Label (e.g. Kitchener)" autoFocus
+                          style={{ flex: 1, padding: '7px 10px', borderRadius: 8, fontSize: 13, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', outline: 'none' }}
+                          onKeyDown={ev => ev.key === 'Enter' && addFixedItem(e.id)}
+                        />
+                        <input
+                          type="number" inputMode="decimal" value={newItemAmount} onChange={ev => setNewItemAmount(ev.target.value)}
+                          placeholder="$0"
+                          style={{ width: 72, padding: '7px 10px', borderRadius: 8, fontSize: 13, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', outline: 'none' }}
+                          onKeyDown={ev => ev.key === 'Enter' && addFixedItem(e.id)}
+                        />
+                        <button onClick={() => addFixedItem(e.id)} style={{ background: 'var(--red)', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Add</button>
+                        <button onClick={() => { setAddingItemFor(null); setNewItemLabel(''); setNewItemAmount('') }}
+                          style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 16 }}>×</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => { setAddingItemFor(e.id); setNewItemLabel(''); setNewItemAmount('') }}
+                        style={{ width: '100%', padding: '8px 14px 8px 66px', textAlign: 'left', background: 'none', border: 'none', borderTop: hasItems ? '1px solid var(--border)' : 'none', color: 'var(--text3)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                        + Add entry
+                      </button>
+                    )}
                   </div>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: e.actual != null ? 'var(--text)' : 'var(--text3)' }}>
-                    {formatCAD(e.actual ?? e.budgeted)}
-                    {e.actual == null && <span style={{ fontSize: 10, color: 'var(--text3)', marginLeft: 4, fontWeight: 400 }}>est</span>}
-                  </span>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </>
         )}
 
         {/* Investments */}
-        {(investments ?? []).length > 0 && (
+        {investments.length > 0 && (
           <>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '20px 2px 10px' }}>
               INVESTMENTS · {summary.investments_pct.toFixed(1)}% of income
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {(investments ?? []).map(inv => {
+              {investments.map(inv => {
                 const actual = Number(inv.actual ?? 0)
                 return (
                   <div key={inv.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px' }}>
@@ -194,13 +418,20 @@ export default async function MonthlyPage({ params }: { params: Promise<{ monthI
                       <IconBox category={inv.vehicle} />
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{inv.vehicle}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{formatCAD(actual)} of {formatCAD(Number(inv.budgeted))}</div>
                       </div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: actual >= Number(inv.budgeted) ? 'var(--green)' : 'var(--text3)' }}>
-                        {Number(inv.budgeted) > 0 ? `${((actual / Number(inv.budgeted)) * 100).toFixed(0)}%` : '—'}
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                        <div style={labelStyle}>Budget</div>
+                        <InlineAmount value={Number(inv.budgeted)} onSave={v => saveInvestmentBudget(inv.id, v)} label="budget" />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                        <div style={labelStyle}>Actual</div>
+                        <InlineAmount value={inv.actual} onSave={v => saveInvestmentActual(inv.id, v)} label="actual" />
+                      </div>
                     </div>
                     <ProgressBar actual={actual} budgeted={Number(inv.budgeted)} />
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                      {formatCAD(actual)} of {formatCAD(Number(inv.budgeted))}
+                    </div>
                   </div>
                 )
               })}

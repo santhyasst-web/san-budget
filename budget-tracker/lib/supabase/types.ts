@@ -76,6 +76,22 @@ export interface SharedSettlement {
   settled: boolean
 }
 
+export interface FixedExpenseItem {
+  id: string
+  user_id: string
+  fixed_expense_id: string
+  label: string
+  amount: number
+}
+
+export interface TransactionItem {
+  id: string
+  user_id: string
+  transaction_id: string
+  label: string
+  amount: number
+}
+
 export interface MonthlySummary {
   total_income: number
   total_fixed_budgeted: number

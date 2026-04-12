@@ -26,6 +26,9 @@ function AddTransactionForm() {
   const [error, setError] = useState('')
   const [vendorSuggestions, setVendorSuggestions] = useState<string[]>([])
   const [pastVendors, setPastVendors] = useState<string[]>([])
+  // Item breakdown
+  const [showItems, setShowItems] = useState(false)
+  const [items, setItems] = useState<{ label: string; amount: string }[]>([{ label: '', amount: '' }])
   const supabase = createClient()
 
   useEffect(() => {
@@ -48,6 +51,28 @@ function AddTransactionForm() {
     return Math.ceil(new Date(dateStr).getDate() / 7)
   }
 
+  // Auto-sum items into the amount field
+  function syncAmountFromItems(newItems: { label: string; amount: string }[]) {
+    const sum = newItems.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0)
+    if (sum > 0) setAmount(sum.toFixed(2))
+  }
+
+  function updateItem(idx: number, field: 'label' | 'amount', val: string) {
+    const next = items.map((it, i) => i === idx ? { ...it, [field]: val } : it)
+    setItems(next)
+    if (field === 'amount') syncAmountFromItems(next)
+  }
+
+  function addItemRow() {
+    setItems(prev => [...prev, { label: '', amount: '' }])
+  }
+
+  function removeItemRow(idx: number) {
+    const next = items.filter((_, i) => i !== idx)
+    setItems(next.length > 0 ? next : [{ label: '', amount: '' }])
+    syncAmountFromItems(next)
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
@@ -64,15 +89,30 @@ function AddTransactionForm() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setError('Not logged in. Please refresh.'); setLoading(false); return }
 
-    const { error: insertError } = await supabase.from('transactions').insert({
+    const { data: txn, error: insertError } = await supabase.from('transactions').insert({
       user_id: user.id, month_id: monthId, date,
       week_number: getWeekNumber(date), category,
       subcategory: subcategory.trim(), amount: amountNum,
       notes: notes.trim() || null, is_shared: isShared,
       shared_direction: isShared ? sharedDirection : null,
-    })
+    }).select().single()
 
-    if (insertError) { setError(insertError.message); setLoading(false); return }
+    if (insertError || !txn) { setError(insertError?.message ?? 'Failed to save'); setLoading(false); return }
+
+    // Insert breakdown items if any
+    if (showItems) {
+      const validItems = items.filter(it => it.label.trim() && parseFloat(it.amount) > 0)
+      if (validItems.length > 0) {
+        await supabase.from('transaction_items').insert(
+          validItems.map(it => ({
+            user_id: user.id,
+            transaction_id: txn.id,
+            label: it.label.trim(),
+            amount: parseFloat(it.amount),
+          }))
+        )
+      }
+    }
 
     if (isShared) {
       await supabase.from('shared_settlements').insert({
@@ -129,6 +169,40 @@ function AddTransactionForm() {
               style={{ flex: 1, fontSize: 40, fontWeight: 800, color: 'var(--text)', background: 'none', border: 'none', outline: 'none', letterSpacing: '-0.02em' }}
             />
           </div>
+        </div>
+
+        {/* Item breakdown toggle */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
+          <button type="button" onClick={() => setShowItems(!showItems)}
+            style={{ width: '100%', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer' }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', textAlign: 'left' }}>Break down into items</div>
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2, textAlign: 'left' }}>e.g. Milk $4, Eggs $6 — auto-sums to total</div>
+            </div>
+            <span style={{ color: 'var(--text3)', fontSize: 18, transition: 'transform 0.2s', transform: showItems ? 'rotate(90deg)' : 'none' }}>›</span>
+          </button>
+          {showItems && (
+            <div style={{ borderTop: '1px solid var(--border)', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {items.map((item, idx) => (
+                <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input
+                    type="text" value={item.label} onChange={e => updateItem(idx, 'label', e.target.value)}
+                    placeholder="Item name" style={{ flex: 1, padding: '8px 10px', borderRadius: 8, fontSize: 13, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', outline: 'none' }}
+                  />
+                  <input
+                    type="number" inputMode="decimal" value={item.amount} onChange={e => updateItem(idx, 'amount', e.target.value)}
+                    placeholder="$0" style={{ width: 72, padding: '8px 10px', borderRadius: 8, fontSize: 13, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', outline: 'none' }}
+                  />
+                  <button type="button" onClick={() => removeItemRow(idx)}
+                    style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 18, padding: '0 4px', lineHeight: 1 }}>×</button>
+                </div>
+              ))}
+              <button type="button" onClick={addItemRow}
+                style={{ alignSelf: 'flex-start', background: 'none', border: '1px dashed var(--border)', borderRadius: 8, padding: '6px 12px', fontSize: 13, color: 'var(--text3)', cursor: 'pointer', fontWeight: 600 }}>
+                + Add item
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Category grid */}
