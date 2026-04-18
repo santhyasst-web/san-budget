@@ -2,29 +2,19 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 
 interface Props { monthId: string }
 
+const navItems = (monthId: string) => [
+  { href: `/dashboard/${monthId}/monthly`,       label: 'MONTHLY',  icon: '📋' },
+  { href: `/dashboard/${monthId}/transactions`, label: 'WEEKLY',   icon: '🗓️' },
+  { href: `/add?monthId=${monthId}`,            label: 'ADD',      icon: '+',  isAdd: true },
+  { href: `/dashboard/${monthId}/shared`,       label: 'SHARED',   icon: '🤝' },
+  { href: `/dashboard/${monthId}/net-worth`,    label: 'WEALTH',   icon: '💎' },
+]
+
 export function BottomNav({ monthId }: Props) {
   const pathname = usePathname()
-  const [trackingMode, setTrackingMode] = useState<'weekly' | 'monthly'>('weekly')
-
-  useEffect(() => {
-    createClient().auth.getUser().then(({ data: { user } }) => {
-      const mode = user?.user_metadata?.tracking_mode ?? 'weekly'
-      setTrackingMode(mode)
-    })
-  }, [])
-
-  const navItems = [
-    { href: `/dashboard/${monthId}/monthly`,       label: 'MONTHLY',  icon: '📋' },
-    ...(trackingMode === 'weekly' ? [{ href: `/dashboard/${monthId}/transactions`, label: 'WEEKLY', icon: '🗓️' }] : []),
-    { href: `/add?monthId=${monthId}`,             label: 'ADD',      icon: '+', isAdd: true },
-    { href: `/dashboard/${monthId}/shared`,        label: 'SHARED',   icon: '🤝' },
-    { href: `/dashboard/${monthId}/net-worth`,     label: 'WEALTH',   icon: '💎' },
-  ]
 
   return (
     <nav style={{
@@ -34,7 +24,7 @@ export function BottomNav({ monthId }: Props) {
       paddingBottom: 'env(safe-area-inset-bottom, 0px)',
     }}>
       <div style={{ display: 'flex', maxWidth: 520, margin: '0 auto' }}>
-        {navItems.map(item => {
+        {navItems(monthId).map(item => {
           const isActive = pathname === item.href || (item.href.includes('/add') && pathname === '/add')
 
           if (item.isAdd) return (

@@ -23,8 +23,6 @@ function SettingsContent() {
   const [user, setUser] = useState<{ id: string; email?: string; full_name?: string } | null>(null)
   const [nameValue, setNameValue] = useState('')
   const [savingName, setSavingName] = useState(false)
-  const [trackingMode, setTrackingMode] = useState<'weekly' | 'monthly'>('weekly')
-  const [savingMode, setSavingMode] = useState(false)
   const [activeSection, setActiveSection] = useState<'months' | 'categories' | 'account'>('months')
 
   const now = new Date()
@@ -58,7 +56,6 @@ function SettingsContent() {
       const name = u?.user_metadata?.full_name ?? ''
       setUser(u ? { id: u.id, email: u.email, full_name: name } : null)
       setNameValue(name)
-      setTrackingMode(u?.user_metadata?.tracking_mode ?? 'weekly')
       if (u) {
         const { data } = await supabase.from('months').select('*').eq('user_id', u.id)
           .order('year', { ascending: false }).order('month', { ascending: false })
@@ -185,13 +182,6 @@ function SettingsContent() {
     await supabase.auth.updateUser({ data: { full_name: nameValue.trim() } })
     setUser(prev => prev ? { ...prev, full_name: nameValue.trim() } : prev)
     setSavingName(false)
-  }
-
-  async function saveTrackingMode(mode: 'weekly' | 'monthly') {
-    setSavingMode(true)
-    setTrackingMode(mode)
-    await supabase.auth.updateUser({ data: { tracking_mode: mode } })
-    setSavingMode(false)
   }
 
   async function handleSignOut() {
@@ -480,32 +470,6 @@ function SettingsContent() {
                   App title: {user.full_name} Budget
                 </div>
               )}
-            </div>
-
-            {/* Tracking mode */}
-            <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border)' }}>
-              <div style={{ ...dimStyle, marginBottom: 10 }}>Tracking mode</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                {([
-                  { value: 'weekly', label: '📅 Weekly', desc: 'Week tabs + weekly budget' },
-                  { value: 'monthly', label: '🗓️ Monthly', desc: 'All transactions, no weeks' },
-                ] as const).map(opt => (
-                  <button key={opt.value} type="button"
-                    onClick={() => !savingMode && saveTrackingMode(opt.value)}
-                    style={{
-                      padding: '12px 10px', borderRadius: 12, textAlign: 'left', cursor: 'pointer',
-                      border: `2px solid ${trackingMode === opt.value ? 'var(--red)' : 'var(--border)'}`,
-                      background: trackingMode === opt.value ? 'var(--red-dim)' : 'var(--surface2)',
-                      opacity: savingMode ? 0.6 : 1,
-                    }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: trackingMode === opt.value ? 'var(--red)' : 'var(--text)' }}>{opt.label}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>{opt.desc}</div>
-                  </button>
-                ))}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 8 }}>
-                Takes effect immediately — refresh the app after switching.
-              </div>
             </div>
           </div>
         )}

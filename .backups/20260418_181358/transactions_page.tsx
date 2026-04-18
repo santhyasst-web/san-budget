@@ -32,7 +32,6 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [expandedTxn, setExpandedTxn] = useState<string | null>(null)
   const [txnItems, setTxnItems] = useState<Record<string, TransactionItem[]>>({})
-  const [trackingMode, setTrackingMode] = useState<'weekly' | 'monthly'>('weekly')
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<{ subcategory: string; amount: string; date: string; is_shared: boolean; shared_direction: 'from_thiyag' | 'to_thiyag'; share_split: 'half' | 'full' } | null>(null)
@@ -41,9 +40,6 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
 
   useEffect(() => {
     setLoading(true)
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setTrackingMode(user?.user_metadata?.tracking_mode ?? 'weekly')
-    })
     Promise.all([
       supabase.from('transactions').select('*').eq('month_id', monthId).order('date', { ascending: false }),
       supabase.from('variable_budget').select('*').eq('month_id', monthId),
@@ -139,10 +135,8 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
     }
   }
 
-  const weekTxns = trackingMode === 'monthly'
-    ? transactions
-    : transactions.filter(t => t.week_number === activeWeek)
-  // Per-period actuals (shared counts at 50%)
+  const weekTxns = transactions.filter(t => t.week_number === activeWeek)
+  // Per-week actuals (shared counts at 50%)
   const weekCategoryActuals: Record<string, number> = {}
   weekTxns.forEach(t => {
     const amt = t.is_shared ? Number(t.amount) * 0.5 : Number(t.amount)
@@ -178,20 +172,18 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
           }}>+</Link>
         </div>
 
-        {/* Week tabs — weekly mode only */}
-        {trackingMode === 'weekly' && (
-          <div style={{ maxWidth: 520, margin: '0 auto', display: 'flex', borderTop: '1px solid var(--border)', padding: '0 8px' }}>
-            {Array.from({ length: weeksInMonth }, (_, i) => i + 1).map(w => (
-              <button key={w} onClick={() => setActiveWeek(w)} style={{
-                flex: 1, padding: '10px 0', fontSize: 11, fontWeight: 700,
-                letterSpacing: '0.05em', background: 'none', border: 'none', cursor: 'pointer',
-                color: activeWeek === w ? 'var(--purple)' : 'var(--text3)',
-                borderBottom: `2px solid ${activeWeek === w ? 'var(--purple)' : 'transparent'}`,
-                transition: 'all 0.15s',
-              }}>WK {w}</button>
-            ))}
-          </div>
-        )}
+        {/* Week tabs */}
+        <div style={{ maxWidth: 520, margin: '0 auto', display: 'flex', borderTop: '1px solid var(--border)', padding: '0 8px' }}>
+          {Array.from({ length: weeksInMonth }, (_, i) => i + 1).map(w => (
+            <button key={w} onClick={() => setActiveWeek(w)} style={{
+              flex: 1, padding: '10px 0', fontSize: 11, fontWeight: 700,
+              letterSpacing: '0.05em', background: 'none', border: 'none', cursor: 'pointer',
+              color: activeWeek === w ? 'var(--purple)' : 'var(--text3)',
+              borderBottom: `2px solid ${activeWeek === w ? 'var(--purple)' : 'transparent'}`,
+              transition: 'all 0.15s',
+            }}>WK {w}</button>
+          ))}
+        </div>
       </div>
 
       <div style={{ maxWidth: 520, margin: '0 auto', padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -200,16 +192,14 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
           <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text3)' }}>Loading...</div>
         ) : (
           <>
-            {/* Total card — top */}
+            {/* Week total card — top */}
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px' }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                {trackingMode === 'monthly' ? 'This Month' : `Week ${activeWeek}`} · {weekTxns.length} transaction{weekTxns.length !== 1 ? 's' : ''}
+                Week {activeWeek} · {weekTxns.length} transaction{weekTxns.length !== 1 ? 's' : ''}
               </div>
               <div style={{ fontSize: 24, fontWeight: 800, color: weekTotal > 0 ? 'var(--text)' : 'var(--text3)', marginTop: 4 }}>
                 {weekTotal > 0 ? formatCAD(weekTotal) : '$0.00'}
-                <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text3)', marginLeft: 6 }}>
-                  {trackingMode === 'monthly' ? 'spent this month' : 'spent this week'}
-                </span>
+                <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text3)', marginLeft: 6 }}>spent this week</span>
               </div>
             </div>
 
