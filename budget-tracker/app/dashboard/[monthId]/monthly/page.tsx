@@ -286,7 +286,14 @@ export default function MonthlyPage({ params }: { params: Promise<{ monthId: str
         {/* Variable categories */}
         {variableBudgets.length > 0 && (
           <>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '16px 2px 10px' }}>VARIABLE EXPENSES</div>
+            <div style={{ margin: '16px 2px 10px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>VARIABLE EXPENSES</div>
+              <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 3 }}>
+                <span style={{ fontWeight: 700, color: 'var(--text)' }}>{formatCAD(summary.total_variable_actual)}</span>
+                <span style={{ color: 'var(--text3)' }}> / {formatCAD(summary.total_variable_budgeted)}</span>
+                <span style={{ color: 'var(--text3)', marginLeft: 6 }}>· {summary.total_income > 0 ? ((summary.total_variable_actual / summary.total_income) * 100).toFixed(1) : '0'}% of income</span>
+              </div>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {variableBudgets.map(b => {
                 const actual = variableActuals[b.category] ?? 0
@@ -317,8 +324,13 @@ export default function MonthlyPage({ params }: { params: Promise<{ monthId: str
         {/* Fixed expenses */}
         {fixedExpenses.length > 0 && (
           <>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '20px 2px 10px' }}>
-              FIXED EXPENSES · {formatCAD(summary.total_fixed_budgeted)}/mo
+            <div style={{ margin: '20px 2px 10px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>FIXED EXPENSES</div>
+              <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 3 }}>
+                <span style={{ fontWeight: 700, color: 'var(--text)' }}>{formatCAD(summary.total_fixed_actual)}</span>
+                <span style={{ color: 'var(--text3)' }}> / {formatCAD(summary.total_fixed_budgeted)}</span>
+                <span style={{ color: 'var(--text3)', marginLeft: 6 }}>· {summary.total_income > 0 ? ((summary.total_fixed_actual / summary.total_income) * 100).toFixed(1) : '0'}% of income</span>
+              </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {fixedExpenses.map(e => {
@@ -406,8 +418,13 @@ export default function MonthlyPage({ params }: { params: Promise<{ monthId: str
         {/* Investments */}
         {investments.length > 0 && (
           <>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '20px 2px 10px' }}>
-              INVESTMENTS · {summary.investments_pct.toFixed(1)}% of income
+            <div style={{ margin: '20px 2px 10px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>INVESTMENTS</div>
+              <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 3 }}>
+                <span style={{ fontWeight: 700, color: 'var(--text)' }}>{formatCAD(summary.total_investments_actual)}</span>
+                <span style={{ color: 'var(--text3)' }}> / {formatCAD(summary.total_investments_budgeted)}</span>
+                <span style={{ color: 'var(--text3)', marginLeft: 6 }}>· {summary.investments_pct.toFixed(1)}% of income</span>
+              </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {investments.map(inv => {

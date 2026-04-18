@@ -192,11 +192,35 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
           <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text3)' }}>Loading...</div>
         ) : (
           <>
+            {/* Week total card — top */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Week {activeWeek} · {weekTxns.length} transaction{weekTxns.length !== 1 ? 's' : ''}
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: weekTotal > 0 ? 'var(--text)' : 'var(--text3)', marginTop: 4 }}>
+                {weekTotal > 0 ? formatCAD(weekTotal) : '$0.00'}
+                <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text3)', marginLeft: 6 }}>spent this week</span>
+              </div>
+            </div>
+
+            {/* Alert banners — top */}
+            {alerts.map((a, i) => (
+              <div key={i} style={{
+                borderRadius: 14, padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#fff',
+                background: a.pct >= 100
+                  ? 'linear-gradient(135deg, #7a1a1a, #4a0d0d)'
+                  : 'linear-gradient(135deg, #7a4a00, #4a2d00)',
+                border: `1px solid ${a.pct >= 100 ? '#a03030' : '#9a6010'}`,
+              }}>
+                {a.pct >= 100 ? '⚡' : '⚠️'} {a.category} {a.pct >= 100 ? 'exceeded' : `at ${a.pct.toFixed(0)}%`} — {formatCAD(a.actual)} / {formatCAD(Number(a.budgeted))}
+              </div>
+            ))}
+
             {/* Spending progress */}
             {budgets.length > 0 && (
               <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
                 <div style={{ padding: '12px 16px 8px', borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>WEEK {activeWeek} BUDGET (1/5 of monthly)</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>WEEK {activeWeek} BUDGET (1/{weeksInMonth} of monthly)</span>
                 </div>
                 {budgets.map((b, i) => {
                   const wBudget = weeklyBudget(Number(b.budgeted))
@@ -218,31 +242,6 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
                 })}
               </div>
             )}
-
-            {/* Alert banners */}
-            {alerts.map((a, i) => (
-              <div key={i} style={{
-                borderRadius: 14, padding: '12px 16px', fontSize: 13, fontWeight: 600, color: '#fff',
-                background: a.pct >= 100
-                  ? 'linear-gradient(135deg, #7a1a1a, #4a0d0d)'
-                  : 'linear-gradient(135deg, #7a4a00, #4a2d00)',
-                border: `1px solid ${a.pct >= 100 ? '#a03030' : '#9a6010'}`,
-                animation: 'slideDown 0.3s ease',
-              }}>
-                {a.pct >= 100 ? '⚡' : '⚠️'} {a.category} {a.pct >= 100 ? 'exceeded' : `at ${a.pct.toFixed(0)}%`} — {formatCAD(a.actual)} / {formatCAD(Number(a.budgeted))}
-              </div>
-            ))}
-
-            {/* Week total card */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                Week {activeWeek} · {weekTxns.length} transaction{weekTxns.length !== 1 ? 's' : ''}
-              </div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: weekTotal > 0 ? 'var(--text)' : 'var(--text3)', marginTop: 4 }}>
-                {weekTotal > 0 ? formatCAD(weekTotal) : '$0.00'}
-                <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--text3)', marginLeft: 6 }}>spent this week</span>
-              </div>
-            </div>
 
             {/* Transactions list */}
             {weekTxns.length === 0 ? (
