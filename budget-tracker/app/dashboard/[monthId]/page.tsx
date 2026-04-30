@@ -160,10 +160,10 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
       {/* Header */}
       <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ maxWidth: 520, margin: '0 auto', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Link href="/dashboard" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 22 }}>💰</span>
             <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>{userName} Budget</span>
-          </div>
+          </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Link href="/dashboard" style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text2)', textDecoration: 'none', fontSize: 16 }}>←</Link>
             <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text2)' }}>{getMonthName(month.month)} {month.year}</span>
@@ -230,21 +230,33 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
 
         {/* Quick nav tiles — 2×2 grid */}
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 2px 10px' }}>NAVIGATE</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-          {navTiles.map(tile => (
-            <Link key={tile.href} href={tile.href} style={{ textDecoration: 'none' }}>
-              <div style={{
-                background: tile.grad, border: `1px solid ${tile.color}30`,
-                borderRadius: 18, padding: '16px 16px 14px',
-                display: 'flex', flexDirection: 'column', gap: 6,
-                boxShadow: `0 4px 20px ${tile.color}18`,
-              }}>
-                <span style={{ fontSize: 28 }}>{tile.icon}</span>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>{tile.label}</div>
-                <div style={{ fontSize: 11, color: tile.color, fontWeight: 600 }}>{tile.sublabel}</div>
-              </div>
-            </Link>
-          ))}
+        <div style={{ position: 'relative', marginBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {navTiles.map(tile => (
+              <Link key={tile.href} href={tile.href} style={{ textDecoration: 'none' }}>
+                <div style={{ background: tile.grad, border: `1px solid ${tile.color}30`, borderRadius: 18, padding: '16px 16px 14px', display: 'flex', flexDirection: 'column', gap: 6, boxShadow: `0 4px 20px ${tile.color}18` }}>
+                  <span style={{ fontSize: 28 }}>{tile.icon}</span>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>{tile.label}</div>
+                  <div style={{ fontSize: 11, color: tile.color, fontWeight: 600 }}>{tile.sublabel}</div>
+                </div>
+              </Link>
+            ))}
+          </div>
+          {/* Compare button — centered at the intersection of the 4 tiles */}
+          <Link href="/dashboard/compare" style={{
+            textDecoration: 'none', position: 'absolute',
+            top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+            zIndex: 10,
+          }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: '50%',
+              background: 'var(--bg)',
+              border: '1.5px solid var(--border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 18,
+              boxShadow: '0 2px 12px rgba(0,0,0,0.5)',
+            }}>⇄</div>
+          </Link>
         </div>
 
         {/* Wealth over time */}
