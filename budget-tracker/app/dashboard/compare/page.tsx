@@ -78,7 +78,7 @@ export default function ComparePage() {
 
   function getFixedActual(snap: MonthSnapshot, category: string) {
     const fe = snap.fixedExpenses.find(e => e.category === category)
-    return fe ? Number(fe.actual ?? fe.budgeted) : 0
+    return fe ? Number(fe.actual ?? 0) : 0
   }
 
   function getInvestmentActual(snap: MonthSnapshot, vehicle: string) {
@@ -87,7 +87,7 @@ export default function ComparePage() {
   }
 
   function totalFixed(snap: MonthSnapshot) {
-    return snap.fixedExpenses.reduce((s, e) => s + Number(e.actual ?? e.budgeted), 0)
+    return snap.fixedExpenses.reduce((s, e) => s + Number(e.actual ?? 0), 0)
   }
 
   function totalVariable(snap: MonthSnapshot) {
