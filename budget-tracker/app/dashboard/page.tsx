@@ -194,10 +194,10 @@ export default function DashboardPage() {
       <div style={{ minHeight: '100vh', background: 'var(--bg)', paddingBottom: 32 }}>
         <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 10 }}>
           <div style={{ maxWidth: 520, margin: '0 auto', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Link href={months[0] ? `/dashboard/${months[0].id}` : '/dashboard'} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 22 }}>💰</span>
               <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>{userName} Budget</span>
-            </div>
+            </Link>
             <Link href="/settings" style={{ color: 'var(--red)', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}>Settings</Link>
           </div>
         </div>
