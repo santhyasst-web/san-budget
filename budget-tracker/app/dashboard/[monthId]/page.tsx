@@ -185,7 +185,7 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
             {dayName} · TODAY
           </div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', marginBottom: 10 }}>
-            {getMonthName(month.month)} {now.getDate()}, {now.getFullYear()}
+            {getMonthName(now.getMonth() + 1)} {now.getDate()}, {now.getFullYear()}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ fontSize: 12, color: '#9ba3d4', fontWeight: 600 }}>Week {weekNum} of {totalWeeks}</div>
