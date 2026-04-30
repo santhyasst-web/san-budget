@@ -96,6 +96,21 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
     ? await supabase.from('accounts').select('month_id,balance').in('month_id', monthIds)
     : { data: [] }
 
+  // TFSA tracker: YTD investments for current year
+  const TFSA_VEHICLES = ['Questrade TFSA', 'WealthSimple', 'Scotia']
+  const tfsaRoom: number | null = user.user_metadata?.tfsa_room ?? null
+  const yearMonthIds = (allMonths ?? []).filter(m => m.year === month.year).map(m => m.id)
+  const { data: ytdInvestments } = yearMonthIds.length > 0
+    ? await supabase.from('investments').select('vehicle,actual').in('month_id', yearMonthIds)
+    : { data: [] }
+  const tfsaMonthContrib = (investments ?? [])
+    .filter(i => TFSA_VEHICLES.includes(i.vehicle))
+    .reduce((s, i) => s + Number(i.actual ?? 0), 0)
+  const tfsaYtd = (ytdInvestments ?? [])
+    .filter(i => TFSA_VEHICLES.includes(i.vehicle))
+    .reduce((s, i) => s + Number(i.actual ?? 0), 0)
+  const tfsaRemaining = tfsaRoom != null ? tfsaRoom - tfsaYtd : null
+
   const wealthByMonth = (allMonths ?? []).map(m => {
     const total = (allAccounts ?? [])
       .filter(a => a.month_id === m.id)
@@ -269,6 +284,35 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
             </div>
           </>
         )}
+
+        {/* TFSA Tracker */}
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 2px 10px' }}>TFSA TRACKER</div>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '16px', marginBottom: 12 }}>
+          <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 12 }}>Questrade TFSA · WealthSimple · Scotia</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--purple)' }}>{formatCAD(tfsaMonthContrib)}</div>
+              <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>This Month</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>{formatCAD(tfsaYtd)}</div>
+              <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>YTD Total</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              {tfsaRemaining != null ? (
+                <>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: tfsaRemaining >= 0 ? 'var(--green)' : 'var(--red)' }}>{formatCAD(tfsaRemaining)}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>Room Left</div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text3)' }}>—</div>
+                  <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>Set in Settings</div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* Income allocation summary */}
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '16px', marginBottom: 16 }}>

@@ -8,7 +8,21 @@ import { formatCAD } from '@/lib/calculations/monthlySummary'
 import Link from 'next/link'
 import type { Transaction, VariableBudget, TransactionItem } from '@/lib/supabase/types'
 
-// WEEKS is computed dynamically from weeksInMonth below
+// Sun-Sat calendar weeks clipped to month boundaries
+function getWeekRanges(year: number, month: number): Array<{ start: number; end: number }> {
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const firstDow = new Date(year, month - 1, 1).getDay() // 0=Sun
+  const ranges: Array<{ start: number; end: number }> = []
+  let day = 1
+  const firstWeekEnd = Math.min(7 - firstDow, daysInMonth)
+  ranges.push({ start: 1, end: firstWeekEnd })
+  day = firstWeekEnd + 1
+  while (day <= daysInMonth) {
+    ranges.push({ start: day, end: Math.min(day + 6, daysInMonth) })
+    day += 7
+  }
+  return ranges
+}
 
 const CATEGORY_META: Record<string, { icon: string; grad: string }> = {
   'Grocery':          { icon: '🛒', grad: 'linear-gradient(135deg,#1a4a2e,#0d2e1a)' },
@@ -24,10 +38,10 @@ const CATEGORY_META: Record<string, { icon: string; grad: string }> = {
 
 export default function TransactionsPage({ params }: { params: Promise<{ monthId: string }> }) {
   const { monthId } = use(params)
-  const [activeWeek, setActiveWeek] = useState(Math.ceil(new Date().getDate() / 7))
+  const [activeWeek, setActiveWeek] = useState(1)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [budgets, setBudgets] = useState<VariableBudget[]>([])
-  const [weeksInMonth, setWeeksInMonth] = useState(5)
+  const [weekRanges, setWeekRanges] = useState<Array<{ start: number; end: number }>>([])
   const [monthInfo, setMonthInfo] = useState<{ year: number; month: number; daysInMonth: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -54,8 +68,17 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
       setBudgets(bud ?? [])
       if (mon) {
         const daysInMonth = new Date(mon.year, mon.month, 0).getDate()
-        setWeeksInMonth(Math.ceil(daysInMonth / 7))
+        const ranges = getWeekRanges(mon.year, mon.month)
+        setWeekRanges(ranges)
         setMonthInfo({ year: mon.year, month: mon.month, daysInMonth })
+        // Set active week to the current calendar week
+        const today = new Date()
+        const isCurrentMonth = today.getFullYear() === mon.year && today.getMonth() + 1 === mon.month
+        if (isCurrentMonth) {
+          const d = today.getDate()
+          const idx = ranges.findIndex(r => d >= r.start && d <= r.end)
+          setActiveWeek(idx >= 0 ? idx + 1 : ranges.length)
+        }
       }
       setLoading(false)
     })
@@ -141,9 +164,14 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
     }
   }
 
+  const activeRange = weekRanges[activeWeek - 1]
   const weekTxns = trackingMode === 'monthly'
     ? transactions
-    : transactions.filter(t => t.week_number === activeWeek)
+    : transactions.filter(t => {
+        if (!activeRange) return false
+        const day = parseInt(t.date.slice(8, 10), 10)
+        return day >= activeRange.start && day <= activeRange.end
+      })
   // Per-period actuals (shared counts at 50%)
   const weekCategoryActuals: Record<string, number> = {}
   weekTxns.forEach(t => {
@@ -151,7 +179,7 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
     weekCategoryActuals[t.category] = (weekCategoryActuals[t.category] ?? 0) + amt
   })
   const weekTotal = weekTxns.reduce((s, t) => s + (t.is_shared ? Number(t.amount) * 0.5 : Number(t.amount)), 0)
-  const weeklyBudget = (b: number) => b / weeksInMonth
+  const weeklyBudget = (b: number) => b / (weekRanges.length || 1)
 
   // Alerts for >75% of weekly allocation
   const alerts = budgets
@@ -183,12 +211,8 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
         {/* Week tabs — weekly mode only */}
         {trackingMode === 'weekly' && (
           <div style={{ maxWidth: 520, margin: '0 auto', display: 'flex', borderTop: '1px solid var(--border)', padding: '0 4px' }}>
-            {Array.from({ length: weeksInMonth }, (_, i) => i + 1).map(w => {
-              const startDay = (w - 1) * 7 + 1
-              const endDay = monthInfo ? Math.min(w * 7, monthInfo.daysInMonth) : w * 7
-              const dateRange = monthInfo
-                ? `${startDay}–${endDay}`
-                : ''
+            {weekRanges.map((range, i) => {
+              const w = i + 1
               return (
                 <button key={w} onClick={() => setActiveWeek(w)} style={{
                   flex: 1, padding: '8px 0 6px', fontSize: 10, fontWeight: 700,
@@ -198,7 +222,7 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
                   transition: 'all 0.15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
                 }}>
                   <span>WK {w}</span>
-                  {dateRange && <span style={{ fontSize: 9, fontWeight: 500, opacity: 0.7 }}>{dateRange}</span>}
+                  <span style={{ fontSize: 9, fontWeight: 500, opacity: 0.7 }}>{range.start}–{range.end}</span>
                 </button>
               )
             })}
@@ -242,7 +266,7 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
             {budgets.length > 0 && (
               <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
                 <div style={{ padding: '12px 16px 8px', borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>WEEK {activeWeek} BUDGET (1/{weeksInMonth} of monthly)</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>WEEK {activeWeek} BUDGET (1/{weekRanges.length} of monthly)</span>
                 </div>
                 {budgets.map((b, i) => {
                   const wBudget = weeklyBudget(Number(b.budgeted))

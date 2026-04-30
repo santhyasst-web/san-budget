@@ -1,7 +1,6 @@
 'use client'
 
 import { use, useEffect, useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { BottomNav } from '@/components/layout/BottomNav'
 import { ProgressBar } from '@/components/ui/ProgressBar'
@@ -111,8 +110,6 @@ export default function MonthlyPage({ params }: { params: Promise<{ monthId: str
   const supabase = createClient()
 
   const [month, setMonth] = useState<{ id: string; year: number; month: number; salary: number; rent_income: number; other_income: number } | null>(null)
-  const [tfsaRoom, setTfsaRoom] = useState<number | null>(null)
-  const [ytdInvestments, setYtdInvestments] = useState<Investment[]>([])
   const [fixedExpenses, setFixedExpenses] = useState<FixedExpense[]>([])
   const [fixedItems, setFixedItems] = useState<FixedExpenseItem[]>([])
   const [variableBudgets, setVariableBudgets] = useState<VariableBudget[]>([])
@@ -133,7 +130,6 @@ export default function MonthlyPage({ params }: { params: Promise<{ monthId: str
         { data: vb },
         { data: txns },
         { data: inv },
-        { data: { user } },
       ] = await Promise.all([
         supabase.from('months').select('*').eq('id', monthId).single(),
         supabase.from('fixed_expenses').select('*').eq('month_id', monthId).order('category'),
@@ -141,7 +137,6 @@ export default function MonthlyPage({ params }: { params: Promise<{ monthId: str
         supabase.from('variable_budget').select('*').eq('month_id', monthId).order('category'),
         supabase.from('transactions').select('*').eq('month_id', monthId),
         supabase.from('investments').select('*').eq('month_id', monthId).order('vehicle'),
-        supabase.auth.getUser(),
       ])
       setMonth(m)
       setFixedExpenses(fe ?? [])
@@ -149,20 +144,6 @@ export default function MonthlyPage({ params }: { params: Promise<{ monthId: str
       setVariableBudgets(vb ?? [])
       setTransactions(txns ?? [])
       setInvestments(inv ?? [])
-      setTfsaRoom(user?.user_metadata?.tfsa_room ?? null)
-
-      // Fetch YTD investments for TFSA tracker
-      if (m && user) {
-        const { data: allMonths } = await supabase
-          .from('months').select('id').eq('user_id', user.id).eq('year', m.year)
-        if (allMonths && allMonths.length > 0) {
-          const monthIds = allMonths.map((mm: { id: string }) => mm.id)
-          const { data: ytd } = await supabase
-            .from('investments').select('*').in('month_id', monthIds)
-          setYtdInvestments((ytd as Investment[] | null) ?? [])
-        }
-      }
-
       setLoading(false)
     }
     load()
@@ -473,49 +454,6 @@ export default function MonthlyPage({ params }: { params: Promise<{ monthId: str
             </div>
           </>
         )}
-
-        {/* TFSA Tracker */}
-        {(() => {
-          const TFSA_VEHICLES = ['Questrade TFSA', 'WealthSimple', 'Scotia']
-          const monthContrib = investments
-            .filter(i => TFSA_VEHICLES.includes(i.vehicle))
-            .reduce((s, i) => s + Number(i.actual ?? 0), 0)
-          const ytdContrib = ytdInvestments
-            .filter(i => TFSA_VEHICLES.includes(i.vehicle))
-            .reduce((s, i) => s + Number(i.actual ?? 0), 0)
-          const remaining = tfsaRoom != null ? tfsaRoom - ytdContrib : null
-          return (
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '16px', marginTop: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>TFSA TRACKER</div>
-                <span style={{ fontSize: 10, color: 'var(--text3)' }}>Questrade + WealthSimple + Scotia</span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--purple)' }}>{formatCAD(monthContrib)}</div>
-                  <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>This Month</div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>{formatCAD(ytdContrib)}</div>
-                  <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>YTD Total</div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  {remaining != null ? (
-                    <>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: remaining >= 0 ? 'var(--green)' : 'var(--red)' }}>{formatCAD(remaining)}</div>
-                      <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>Room Left</div>
-                    </>
-                  ) : (
-                    <>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text3)' }}>—</div>
-                      <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>Set room in Settings</div>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          )
-        })()}
 
         {/* Income allocation */}
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '16px', marginTop: 20, marginBottom: 16 }}>
