@@ -25,6 +25,8 @@ function SettingsContent() {
   const [savingName, setSavingName] = useState(false)
   const [trackingMode, setTrackingMode] = useState<'weekly' | 'monthly'>('weekly')
   const [savingMode, setSavingMode] = useState(false)
+  const [tfsaRoom, setTfsaRoom] = useState('')
+  const [savingTfsa, setSavingTfsa] = useState(false)
   const [activeSection, setActiveSection] = useState<'months' | 'categories' | 'account'>('months')
 
   const now = new Date()
@@ -59,6 +61,7 @@ function SettingsContent() {
       setUser(u ? { id: u.id, email: u.email, full_name: name } : null)
       setNameValue(name)
       setTrackingMode(u?.user_metadata?.tracking_mode ?? 'weekly')
+      setTfsaRoom(u?.user_metadata?.tfsa_room != null ? String(u.user_metadata.tfsa_room) : '')
       if (u) {
         const { data } = await supabase.from('months').select('*').eq('user_id', u.id)
           .order('year', { ascending: false }).order('month', { ascending: false })
@@ -98,7 +101,7 @@ function SettingsContent() {
         supabase.from('investments').select('*').eq('month_id', prevMonth.id),
         supabase.from('accounts').select('*').eq('month_id', prevMonth.id),
       ])
-      if (pFixed?.length) fixedToInsert = pFixed.map(({ id, month_id, ...rest }: FixedExpense) => ({ ...rest, month_id: month.id }))
+      if (pFixed?.length) fixedToInsert = pFixed.map(({ id, month_id, actual, paid_date, ...rest }: FixedExpense) => ({ ...rest, month_id: month.id, actual: null, paid_date: null }))
       if (pVar?.length) variableToInsert = pVar.map(({ id, month_id, ...rest }: VariableBudget) => ({ ...rest, month_id: month.id }))
       if (pInv?.length) investToInsert = pInv.map(({ id, month_id, actual, contributed_date, ...rest }: Investment) => ({ ...rest, month_id: month.id, actual: null, contributed_date: null }))
       if (pAcc?.length) accountsToInsert = pAcc.map(({ id, month_id, balance, ...rest }: Account) => ({ ...rest, month_id: month.id, balance: 0 }))
@@ -185,6 +188,14 @@ function SettingsContent() {
     await supabase.auth.updateUser({ data: { full_name: nameValue.trim() } })
     setUser(prev => prev ? { ...prev, full_name: nameValue.trim() } : prev)
     setSavingName(false)
+  }
+
+  async function saveTfsaRoom() {
+    const val = parseFloat(tfsaRoom)
+    if (isNaN(val)) return
+    setSavingTfsa(true)
+    await supabase.auth.updateUser({ data: { tfsa_room: val } })
+    setSavingTfsa(false)
   }
 
   async function saveTrackingMode(mode: 'weekly' | 'monthly') {
@@ -506,6 +517,29 @@ function SettingsContent() {
               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 8 }}>
                 Takes effect immediately — refresh the app after switching.
               </div>
+            </div>
+
+            {/* TFSA contribution room */}
+            <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border)' }}>
+              <div style={{ ...dimStyle, marginBottom: 4 }}>TFSA Available Contribution Room</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 8 }}>Your current CRA remaining room (check My CRA Account)</div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="number" inputMode="decimal" step="0.01"
+                  value={tfsaRoom} onChange={e => setTfsaRoom(e.target.value)}
+                  placeholder="e.g. 24500"
+                  style={{ ...inputStyle, flex: 1, textAlign: 'left' }}
+                />
+                <button onClick={saveTfsaRoom} disabled={savingTfsa || !tfsaRoom.trim()}
+                  style={{ ...saveBtn, opacity: savingTfsa ? 0.5 : 1 }}>
+                  {savingTfsa ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+              {tfsaRoom && !isNaN(parseFloat(tfsaRoom)) && (
+                <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 6 }}>
+                  Room: ${parseFloat(tfsaRoom).toLocaleString('en-CA', { minimumFractionDigits: 2 })}
+                </div>
+              )}
             </div>
           </div>
         )}

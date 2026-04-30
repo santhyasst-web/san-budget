@@ -28,6 +28,7 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [budgets, setBudgets] = useState<VariableBudget[]>([])
   const [weeksInMonth, setWeeksInMonth] = useState(5)
+  const [monthInfo, setMonthInfo] = useState<{ year: number; month: number; daysInMonth: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [expandedTxn, setExpandedTxn] = useState<string | null>(null)
@@ -54,6 +55,7 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
       if (mon) {
         const daysInMonth = new Date(mon.year, mon.month, 0).getDate()
         setWeeksInMonth(Math.ceil(daysInMonth / 7))
+        setMonthInfo({ year: mon.year, month: mon.month, daysInMonth })
       }
       setLoading(false)
     })
@@ -180,16 +182,26 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
 
         {/* Week tabs — weekly mode only */}
         {trackingMode === 'weekly' && (
-          <div style={{ maxWidth: 520, margin: '0 auto', display: 'flex', borderTop: '1px solid var(--border)', padding: '0 8px' }}>
-            {Array.from({ length: weeksInMonth }, (_, i) => i + 1).map(w => (
-              <button key={w} onClick={() => setActiveWeek(w)} style={{
-                flex: 1, padding: '10px 0', fontSize: 11, fontWeight: 700,
-                letterSpacing: '0.05em', background: 'none', border: 'none', cursor: 'pointer',
-                color: activeWeek === w ? 'var(--purple)' : 'var(--text3)',
-                borderBottom: `2px solid ${activeWeek === w ? 'var(--purple)' : 'transparent'}`,
-                transition: 'all 0.15s',
-              }}>WK {w}</button>
-            ))}
+          <div style={{ maxWidth: 520, margin: '0 auto', display: 'flex', borderTop: '1px solid var(--border)', padding: '0 4px' }}>
+            {Array.from({ length: weeksInMonth }, (_, i) => i + 1).map(w => {
+              const startDay = (w - 1) * 7 + 1
+              const endDay = monthInfo ? Math.min(w * 7, monthInfo.daysInMonth) : w * 7
+              const dateRange = monthInfo
+                ? `${startDay}–${endDay}`
+                : ''
+              return (
+                <button key={w} onClick={() => setActiveWeek(w)} style={{
+                  flex: 1, padding: '8px 0 6px', fontSize: 10, fontWeight: 700,
+                  letterSpacing: '0.03em', background: 'none', border: 'none', cursor: 'pointer',
+                  color: activeWeek === w ? 'var(--purple)' : 'var(--text3)',
+                  borderBottom: `2px solid ${activeWeek === w ? 'var(--purple)' : 'transparent'}`,
+                  transition: 'all 0.15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+                }}>
+                  <span>WK {w}</span>
+                  {dateRange && <span style={{ fontSize: 9, fontWeight: 500, opacity: 0.7 }}>{dateRange}</span>}
+                </button>
+              )
+            })}
           </div>
         )}
       </div>

@@ -12,6 +12,7 @@ export default function NetWorthPage({ params }: { params: Promise<{ monthId: st
   const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<string | null>(null)
+  const [expandedTile, setExpandedTile] = useState<'liquid' | 'investments' | null>(null)
   const [editValue, setEditValue] = useState('')
   const [saving, setSaving] = useState(false)
   const [newName, setNewName] = useState('')
@@ -75,16 +76,35 @@ export default function NetWorthPage({ params }: { params: Promise<{ monthId: st
 
       <div className="max-w-lg mx-auto px-4 pt-4 space-y-4">
         <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: 'Total Worth', amount: totalWorth, highlight: true },
-            { label: 'Liquid', amount: liquidWorth, highlight: false },
-            { label: 'Investments', amount: investmentWorth, highlight: false },
-          ].map(card => (
-            <div key={card.label} className={`rounded-xl p-3 text-center ${card.highlight ? 'bg-red-600' : 'bg-gray-800 border border-gray-700'}`}>
-              <p className={`text-xs font-medium ${card.highlight ? 'text-red-100' : 'text-gray-400'}`}>{card.label}</p>
-              <p className={`text-sm font-bold mt-1 ${card.highlight ? 'text-white' : 'text-white'}`}>
-                <CurrencyDisplay amount={card.amount} />
-              </p>
+          <div className="rounded-xl p-3 text-center bg-red-600">
+            <p className="text-xs font-medium text-red-100">Total Worth</p>
+            <p className="text-sm font-bold mt-1 text-white"><CurrencyDisplay amount={totalWorth} /></p>
+          </div>
+          {([
+            { key: 'liquid' as const, label: 'Liquid', amount: liquidWorth, accounts: sorted.filter(a => a.is_liquid) },
+            { key: 'investments' as const, label: 'Investments', amount: investmentWorth, accounts: sorted.filter(a => !a.is_liquid) },
+          ]).map(tile => (
+            <div key={tile.key} className="rounded-xl overflow-hidden border border-gray-700">
+              <button
+                onClick={() => setExpandedTile(expandedTile === tile.key ? null : tile.key)}
+                className="w-full p-3 text-center bg-gray-800"
+              >
+                <p className="text-xs font-medium text-gray-400">{tile.label} {expandedTile === tile.key ? '▾' : '▸'}</p>
+                <p className="text-sm font-bold mt-1 text-white"><CurrencyDisplay amount={tile.amount} /></p>
+              </button>
+              {expandedTile === tile.key && (
+                <div className="bg-gray-900 border-t border-gray-700">
+                  {tile.accounts.map(a => (
+                    <div key={a.id} className="flex justify-between items-center px-3 py-1.5 border-b border-gray-800 last:border-0">
+                      <span className="text-xs text-gray-400 truncate">{a.account_name}</span>
+                      <span className="text-xs font-semibold text-white ml-2 shrink-0"><CurrencyDisplay amount={Number(a.balance)} /></span>
+                    </div>
+                  ))}
+                  {tile.accounts.length === 0 && (
+                    <p className="px-3 py-2 text-xs text-gray-600">No accounts</p>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

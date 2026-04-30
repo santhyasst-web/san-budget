@@ -203,7 +203,10 @@ export default function DashboardPage() {
         </div>
 
         <div style={{ maxWidth: 520, margin: '0 auto', padding: '16px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>SELECT MONTH</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>SELECT MONTH</div>
+            <Link href="/dashboard/compare" style={{ fontSize: 12, fontWeight: 600, color: 'var(--purple)', textDecoration: 'none' }}>⇄ Compare</Link>
+          </div>
           {months.map(m => (
             <Link key={m.id} href={`/dashboard/${m.id}`} style={{ textDecoration: 'none' }}>
               <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
