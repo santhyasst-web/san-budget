@@ -147,7 +147,7 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
   const totalWeeks = Math.ceil(daysInMonth / 7)
   const weekNum = Math.min(Math.ceil(now.getDate() / 7), totalWeeks)
   const weekSpent = (transactions ?? [])
-    .filter(t => t.week_number === weekNum && !t.is_shared)
+    .filter(t => Math.ceil(parseInt(t.date.split('-')[2], 10) / 7) === weekNum && !t.is_shared)
     .reduce((s, t) => s + Number(t.amount), 0)
 
   const navTiles = [
