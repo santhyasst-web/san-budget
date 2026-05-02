@@ -49,7 +49,7 @@ function AddTransactionForm() {
   }, [category, monthId])
 
   function getWeekNumber(dateStr: string): number {
-    return Math.ceil(new Date(dateStr).getDate() / 7)
+    return Math.ceil(parseInt(dateStr.split('-')[2], 10) / 7)
   }
 
   // Auto-sum items into the amount field

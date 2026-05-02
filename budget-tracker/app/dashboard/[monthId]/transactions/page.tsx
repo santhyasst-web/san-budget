@@ -109,7 +109,7 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
     const amountNum = parseFloat(editDraft.amount)
     if (isNaN(amountNum) || amountNum <= 0) { setSavingEdit(false); return }
 
-    const weekNum = Math.ceil(new Date(editDraft.date).getDate() / 7)
+    const weekNum = Math.ceil(parseInt(editDraft.date.split('-')[2], 10) / 7)
     await supabase.from('transactions').update({
       subcategory: editDraft.subcategory.trim(),
       amount: amountNum,
