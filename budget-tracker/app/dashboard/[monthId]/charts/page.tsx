@@ -237,9 +237,9 @@ export default function ChartsPage({ params }: { params: Promise<{ monthId: stri
     color: CATEGORY_COLORS[b.category] ?? '#94a3b8',
   })).filter(s => s.value > 0)
 
-  // Weekly totals
+  // Weekly totals — compute week from date string to avoid timezone bugs in stored week_number
   const weekTotals = [1, 2, 3, 4, 5].map(w =>
-    transactions.filter(t => t.week_number === w && !t.is_shared).reduce((s, t) => s + Number(t.amount), 0)
+    transactions.filter(t => Math.ceil(parseInt(t.date.split('-')[2], 10) / 7) === w && !t.is_shared).reduce((s, t) => s + Number(t.amount), 0)
   )
   const maxWeek = Math.max(...weekTotals, 1)
 

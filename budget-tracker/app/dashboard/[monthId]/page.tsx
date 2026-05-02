@@ -306,17 +306,17 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
           <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 12 }}>Questrade TFSA · WealthSimple · Scotia</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--purple)' }}>{formatCAD(Math.round(tfsaMonthContrib))}</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--purple)' }}>${Math.round(tfsaMonthContrib).toLocaleString('en-CA')}</div>
               <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>This Month</div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>{formatCAD(Math.round(tfsaYtd))}</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>${Math.round(tfsaYtd).toLocaleString('en-CA')}</div>
               <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>YTD Total</div>
             </div>
             <div style={{ textAlign: 'center' }}>
               {tfsaRemaining != null ? (
                 <>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: tfsaRemaining >= 0 ? 'var(--green)' : 'var(--red)' }}>{formatCAD(Math.round(tfsaRemaining))}</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: tfsaRemaining >= 0 ? 'var(--green)' : 'var(--red)' }}>${Math.round(tfsaRemaining).toLocaleString('en-CA')}</div>
                   <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>Room Left</div>
                 </>
               ) : (
