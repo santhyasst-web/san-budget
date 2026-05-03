@@ -101,7 +101,7 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
   const tfsaRoom: number | null = user.user_metadata?.tfsa_room ?? null
   const yearMonthIds = (allMonths ?? []).filter(m => m.year === month.year).map(m => m.id)
   const { data: ytdInvestments } = yearMonthIds.length > 0
-    ? await supabase.from('investments').select('vehicle,actual').in('month_id', yearMonthIds)
+    ? await supabase.from('investments').select('vehicle,actual,month_id').in('month_id', yearMonthIds)
     : { data: [] }
   const tfsaMonthContrib = (investments ?? [])
     .filter(i => TFSA_VEHICLES.includes(i.vehicle))
@@ -154,14 +154,17 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
   const goalAmount: number | null = user.user_metadata?.investment_goal_amount ?? null
   const goalDeadline: string | null = user.user_metadata?.investment_goal_deadline ?? null // "YYYY-MM"
   const ytdInvestedTotal = (ytdInvestments ?? []).reduce((s, i) => s + Number(i.actual ?? 0), 0)
+  // Count only months that have at least some investment activity
+  const activeInvestmentMonths = Math.max(1, yearMonthIds.filter(mid =>
+    (ytdInvestments ?? []).some(i => i.month_id === mid && Number(i.actual ?? 0) > 0)
+  ).length)
   let goalWidget: { pct: number; onTrack: boolean; paceDelta: number; projectedDate: string } | null = null
   if (goalAmount && goalDeadline) {
     const [dlYear, dlMonth] = goalDeadline.split('-').map(Number)
     const deadlineDate = new Date(dlYear, dlMonth, 1)
     const nowDate = new Date(now.getFullYear(), now.getMonth(), 1)
     const monthsLeft = Math.max(0, (deadlineDate.getFullYear() - nowDate.getFullYear()) * 12 + (deadlineDate.getMonth() - nowDate.getMonth()))
-    const monthsElapsed = Math.max(1, (nowDate.getFullYear() - new Date(now.getFullYear(), 0, 1).getFullYear()) * 12 + nowDate.getMonth() + 1)
-    const currentPace = ytdInvestedTotal / monthsElapsed
+    const currentPace = ytdInvestedTotal / activeInvestmentMonths
     const requiredPace = goalAmount / (monthsElapsed + monthsLeft)
     const onTrack = currentPace >= requiredPace
     const pct = Math.min((ytdInvestedTotal / goalAmount) * 100, 100)
