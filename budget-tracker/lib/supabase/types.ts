@@ -49,6 +49,7 @@ export interface Transaction {
   week_number: number
   category: string
   subcategory: string
+  sub_label: string
   amount: number
   notes: string | null
   is_shared: boolean
@@ -92,6 +93,13 @@ export interface TransactionItem {
   transaction_id: string
   label: string
   amount: number
+}
+
+export interface Subcategory {
+  id: string
+  user_id: string
+  category: string
+  name: string
 }
 
 export interface MonthlySummary {

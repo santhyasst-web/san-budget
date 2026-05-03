@@ -25,6 +25,8 @@ function AddTransactionForm() {
   const [shareSplit, setShareSplit] = useState<'half' | 'full'>('half')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [subLabel, setSubLabel] = useState('')
+  const [subLabelOptions, setSubLabelOptions] = useState<string[]>([])
   const [vendorSuggestions, setVendorSuggestions] = useState<string[]>([])
   const [pastVendors, setPastVendors] = useState<string[]>([])
   // Item breakdown
@@ -45,6 +47,15 @@ function AddTransactionForm() {
         .then(({ data }) => {
           if (data) setPastVendors([...new Set(data.map((t: { subcategory: string }) => t.subcategory).filter(Boolean))])
         })
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (user) {
+          supabase.from('subcategories').select('name').eq('user_id', user.id).eq('category', category)
+            .order('name').then(({ data }) => {
+              setSubLabelOptions(data ? data.map((s: { name: string }) => s.name) : [])
+              setSubLabel('')
+            })
+        }
+      })
     }
   }, [category, monthId])
 
@@ -93,7 +104,7 @@ function AddTransactionForm() {
     const { data: txn, error: insertError } = await supabase.from('transactions').insert({
       user_id: user.id, month_id: monthId, date,
       week_number: getWeekNumber(date), category,
-      subcategory: subcategory.trim(), amount: amountNum,
+      subcategory: subcategory.trim(), sub_label: subLabel, amount: amountNum,
       notes: notes.trim() || null, is_shared: isShared,
       shared_direction: isShared ? sharedDirection : null,
       share_split: isShared ? shareSplit : 'half',
@@ -232,6 +243,27 @@ function AddTransactionForm() {
             ))}
           </div>
         </div>
+
+        {/* Sub-category chips */}
+        {category && subLabelOptions.length > 0 && (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Sub-category</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {subLabelOptions.map(opt => (
+                <button key={opt} type="button" onClick={() => setSubLabel(subLabel === opt ? '' : opt)}
+                  style={{
+                    padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                    border: `1px solid ${subLabel === opt ? 'var(--purple)' : 'var(--border)'}`,
+                    background: subLabel === opt ? 'rgba(139,92,246,0.15)' : 'var(--surface)',
+                    color: subLabel === opt ? '#a78bfa' : 'var(--text3)',
+                    transition: 'all 0.15s',
+                  }}>
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Vendor */}
         {category && (

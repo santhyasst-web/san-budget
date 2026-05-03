@@ -7,7 +7,7 @@ import { DEFAULT_FIXED_EXPENSES, DEFAULT_VARIABLE_BUDGETS } from '@/lib/constant
 import { DEFAULT_ACCOUNTS, DEFAULT_INVESTMENTS } from '@/lib/constants/accounts'
 import { getMonthName } from '@/lib/calculations/monthlySummary'
 import Link from 'next/link'
-import type { Month, FixedExpense, VariableBudget, Investment, Account } from '@/lib/supabase/types'
+import type { Month, FixedExpense, VariableBudget, Investment, Account, Subcategory } from '@/lib/supabase/types'
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
@@ -27,7 +27,20 @@ function SettingsContent() {
   const [savingMode, setSavingMode] = useState(false)
   const [tfsaRoom, setTfsaRoom] = useState('')
   const [savingTfsa, setSavingTfsa] = useState(false)
+  const [goalAmount, setGoalAmount] = useState('')
+  const [goalDeadline, setGoalDeadline] = useState('')
+  const [savingGoal, setSavingGoal] = useState(false)
   const [activeSection, setActiveSection] = useState<'months' | 'categories' | 'account'>('months')
+
+  // Income editing (inside month expand panel)
+  const [editingIncomeMonthId, setEditingIncomeMonthId] = useState<string | null>(null)
+  const [editingIncomeField, setEditingIncomeField] = useState<'salary' | 'rent_income' | 'other_income'>('salary')
+  const [incomeEditValue, setIncomeEditValue] = useState('')
+
+  // Sub-categories (user-level, per category)
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([])
+  const [newSubcatCategory, setNewSubcatCategory] = useState<string | null>(null)
+  const [newSubcatName, setNewSubcatName] = useState('')
 
   const now = new Date()
   const [newYear, setNewYear] = useState(now.getFullYear())
@@ -62,10 +75,16 @@ function SettingsContent() {
       setNameValue(name)
       setTrackingMode(u?.user_metadata?.tracking_mode ?? 'weekly')
       setTfsaRoom(u?.user_metadata?.tfsa_room != null ? String(u.user_metadata.tfsa_room) : '')
+      setGoalAmount(u?.user_metadata?.investment_goal_amount != null ? String(u.user_metadata.investment_goal_amount) : '')
+      setGoalDeadline(u?.user_metadata?.investment_goal_deadline ?? '')
       if (u) {
-        const { data } = await supabase.from('months').select('*').eq('user_id', u.id)
-          .order('year', { ascending: false }).order('month', { ascending: false })
-        setMonths(data ?? [])
+        const [{ data: monthsData }, { data: subcatsData }] = await Promise.all([
+          supabase.from('months').select('*').eq('user_id', u.id)
+            .order('year', { ascending: false }).order('month', { ascending: false }),
+          supabase.from('subcategories').select('*').eq('user_id', u.id).order('name'),
+        ])
+        setMonths(monthsData ?? [])
+        setSubcategories(subcatsData ?? [])
         if (monthIdParam) {
           loadMonthDetails(monthIdParam)
         }
@@ -203,6 +222,40 @@ function SettingsContent() {
     setTrackingMode(mode)
     await supabase.auth.updateUser({ data: { tracking_mode: mode } })
     setSavingMode(false)
+  }
+
+  async function saveIncome(monthId: string) {
+    const val = parseFloat(incomeEditValue)
+    if (isNaN(val)) { setEditingIncomeMonthId(null); return }
+    await supabase.from('months').update({ [editingIncomeField]: val }).eq('id', monthId)
+    setMonths(prev => prev.map(m => m.id === monthId ? { ...m, [editingIncomeField]: val } : m))
+    setEditingIncomeMonthId(null)
+    setIncomeEditValue('')
+  }
+
+  async function addSubcat(category: string) {
+    if (!newSubcatName.trim() || !user) return
+    const { data, error } = await supabase.from('subcategories').insert({
+      user_id: user.id, category, name: newSubcatName.trim(),
+    }).select().single()
+    if (!error && data) {
+      setSubcategories(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
+      setNewSubcatName('')
+      setNewSubcatCategory(null)
+    }
+  }
+
+  async function deleteSubcat(id: string) {
+    await supabase.from('subcategories').delete().eq('id', id)
+    setSubcategories(prev => prev.filter(s => s.id !== id))
+  }
+
+  async function saveGoal() {
+    const amount = parseFloat(goalAmount)
+    if (isNaN(amount) || !goalDeadline) return
+    setSavingGoal(true)
+    await supabase.auth.updateUser({ data: { investment_goal_amount: amount, investment_goal_deadline: goalDeadline } })
+    setSavingGoal(false)
   }
 
   async function handleSignOut() {
@@ -379,6 +432,32 @@ function SettingsContent() {
                         </div>
                       ))}
 
+                      {/* Income */}
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '16px 0 8px' }}>Income</div>
+                      {([
+                        { key: 'salary' as const, label: 'Salary', value: m.salary },
+                        { key: 'rent_income' as const, label: 'Rent Income', value: m.rent_income },
+                        { key: 'other_income' as const, label: 'Other Income', value: m.other_income },
+                      ]).map(({ key, label, value }, i, arr) => (
+                        <div key={key} style={{ padding: '10px 0', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          <div style={labelStyle}>{label}</div>
+                          {editingIncomeMonthId === m.id && editingIncomeField === key ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                              <input type="number" inputMode="decimal" step="0.01" value={incomeEditValue}
+                                onChange={ev => setIncomeEditValue(ev.target.value)} style={inputStyle} autoFocus />
+                              <button onClick={() => saveIncome(m.id)} style={saveBtn}>Save</button>
+                              <button onClick={() => setEditingIncomeMonthId(null)} style={{ ...saveBtn, color: 'var(--text3)' }}>✕</button>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--green)' }}>${Number(value).toFixed(2)}</span>
+                              <button onClick={() => { setEditingIncomeMonthId(m.id); setEditingIncomeField(key); setIncomeEditValue(String(value)) }}
+                                style={{ ...saveBtn, color: 'var(--purple)', fontSize: 12 }}>Edit</button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+
                     </div>
                   )}
                 </div>
@@ -433,28 +512,58 @@ function SettingsContent() {
                     </div>
                   )}
 
-                  {variableBudgets.map((b, i) => (
-                    <div key={b.id} style={{ ...rowStyle, borderBottom: i < variableBudgets.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                      <div>
-                        <div style={labelStyle}>{b.category}</div>
-                        <div style={dimStyle}>Budget: ${Number(b.budgeted).toFixed(2)}/mo</div>
+                  {variableBudgets.map((b, i) => {
+                    const catSubcats = subcategories.filter(s => s.category === b.category)
+                    return (
+                      <div key={b.id} style={{ borderBottom: i < variableBudgets.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                        <div style={{ ...rowStyle, borderBottom: 'none' }}>
+                          <div>
+                            <div style={labelStyle}>{b.category}</div>
+                            <div style={dimStyle}>Budget: ${Number(b.budgeted).toFixed(2)}/mo</div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                            {editingVariable === b.id ? (
+                              <>
+                                <input type="number" inputMode="decimal" step="0.01" value={editValue}
+                                  onChange={ev => setEditValue(ev.target.value)} style={inputStyle} autoFocus />
+                                <button onClick={() => saveVariable(b.id)} style={saveBtn}>Save</button>
+                              </>
+                            ) : (
+                              <button onClick={() => { setEditingVariable(b.id); setEditValue(String(b.budgeted)) }}
+                                style={{ ...saveBtn, color: 'var(--purple)' }}>Edit</button>
+                            )}
+                            <button onClick={() => deleteCategory(b.id)}
+                              style={{ color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
+                          </div>
+                        </div>
+                        {/* Sub-categories */}
+                        <div style={{ padding: '0 16px 10px', background: 'var(--surface2)' }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: catSubcats.length > 0 ? 6 : 0 }}>
+                            {catSubcats.map(s => (
+                              <span key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 20, padding: '3px 10px', fontSize: 12, color: 'var(--text2)' }}>
+                                {s.name}
+                                <button onClick={() => deleteSubcat(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
+                              </span>
+                            ))}
+                            {newSubcatCategory === b.category ? (
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <input autoFocus type="text" value={newSubcatName} onChange={e => setNewSubcatName(e.target.value)}
+                                  onKeyDown={e => { if (e.key === 'Enter') addSubcat(b.category); if (e.key === 'Escape') { setNewSubcatCategory(null); setNewSubcatName('') } }}
+                                  placeholder="Sub-category name" style={{ ...inputStyle, width: 130, textAlign: 'left', fontSize: 12 }} />
+                                <button onClick={() => addSubcat(b.category)} style={saveBtn}>Add</button>
+                                <button onClick={() => { setNewSubcatCategory(null); setNewSubcatName('') }} style={{ ...saveBtn, color: 'var(--text3)' }}>✕</button>
+                              </span>
+                            ) : (
+                              <button onClick={() => { setNewSubcatCategory(b.category); setNewSubcatName('') }}
+                                style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: 20, padding: '3px 10px', fontSize: 12, color: 'var(--text3)', cursor: 'pointer' }}>
+                                + sub-category
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                        {editingVariable === b.id ? (
-                          <>
-                            <input type="number" inputMode="decimal" step="0.01" value={editValue}
-                              onChange={ev => setEditValue(ev.target.value)} style={inputStyle} autoFocus />
-                            <button onClick={() => saveVariable(b.id)} style={saveBtn}>Save</button>
-                          </>
-                        ) : (
-                          <button onClick={() => { setEditingVariable(b.id); setEditValue(String(b.budgeted)) }}
-                            style={{ ...saveBtn, color: 'var(--purple)' }}>Edit</button>
-                        )}
-                        <button onClick={() => deleteCategory(b.id)}
-                          style={{ color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </>
             )}
@@ -538,6 +647,30 @@ function SettingsContent() {
               {tfsaRoom && !isNaN(parseFloat(tfsaRoom)) && (
                 <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 6 }}>
                   Room: ${parseFloat(tfsaRoom).toLocaleString('en-CA', { minimumFractionDigits: 2 })}
+                </div>
+              )}
+            </div>
+
+            {/* Investment Goal */}
+            <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border)' }}>
+              <div style={{ ...dimStyle, marginBottom: 4 }}>Investment Goal</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 8 }}>Set a target investment amount and deadline — shown as a progress widget on your summary page</div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                <input type="number" inputMode="decimal" value={goalAmount} onChange={e => setGoalAmount(e.target.value)}
+                  placeholder="Target amount (e.g. 20000)"
+                  style={{ ...inputStyle, flex: 1, textAlign: 'left' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input type="month" value={goalDeadline} onChange={e => setGoalDeadline(e.target.value)}
+                  style={{ ...inputStyle, flex: 1, textAlign: 'left' }} />
+                <button onClick={saveGoal} disabled={savingGoal || !goalAmount || !goalDeadline}
+                  style={{ ...saveBtn, opacity: savingGoal || !goalAmount || !goalDeadline ? 0.5 : 1 }}>
+                  {savingGoal ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+              {goalAmount && goalDeadline && (
+                <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 6 }}>
+                  Goal: ${parseFloat(goalAmount).toLocaleString('en-CA')} by {goalDeadline}
                 </div>
               )}
             </div>

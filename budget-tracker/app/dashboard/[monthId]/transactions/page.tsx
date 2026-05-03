@@ -6,7 +6,7 @@ import { BottomNav } from '@/components/layout/BottomNav'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { formatCAD } from '@/lib/calculations/monthlySummary'
 import Link from 'next/link'
-import type { Transaction, VariableBudget, TransactionItem } from '@/lib/supabase/types'
+import type { Transaction, VariableBudget, TransactionItem, Subcategory } from '@/lib/supabase/types'
 
 // Sun-Sat calendar weeks clipped to month boundaries
 function getWeekRanges(year: number, month: number): Array<{ start: number; end: number }> {
@@ -50,8 +50,9 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
   const [trackingMode, setTrackingMode] = useState<'weekly' | 'monthly'>('weekly')
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editDraft, setEditDraft] = useState<{ subcategory: string; amount: string; date: string; is_shared: boolean; shared_direction: 'from_thiyag' | 'to_thiyag'; share_split: 'half' | 'full' } | null>(null)
+  const [editDraft, setEditDraft] = useState<{ subcategory: string; sub_label: string; amount: string; date: string; is_shared: boolean; shared_direction: 'from_thiyag' | 'to_thiyag'; share_split: 'half' | 'full' } | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
+  const [editSubcatOptions, setEditSubcatOptions] = useState<Subcategory[]>([])
   const supabase = createClient()
 
   useEffect(() => {
@@ -95,11 +96,18 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
     setEditingId(t.id)
     setEditDraft({
       subcategory: t.subcategory ?? '',
+      sub_label: t.sub_label ?? '',
       amount: String(t.amount),
       date: t.date,
       is_shared: t.is_shared,
       shared_direction: t.shared_direction ?? 'from_thiyag',
       share_split: t.share_split ?? 'half',
+    })
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        supabase.from('subcategories').select('*').eq('user_id', user.id).eq('category', t.category).order('name')
+          .then(({ data }) => setEditSubcatOptions(data ?? []))
+      }
     })
   }
 
@@ -112,6 +120,7 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
     const weekNum = Math.ceil(parseInt(editDraft.date.split('-')[2], 10) / 7)
     await supabase.from('transactions').update({
       subcategory: editDraft.subcategory.trim(),
+      sub_label: editDraft.sub_label,
       amount: amountNum,
       date: editDraft.date,
       week_number: weekNum,
@@ -142,6 +151,7 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
     setTransactions(prev => prev.map(tx => tx.id === t.id ? {
       ...tx,
       subcategory: editDraft.subcategory.trim(),
+      sub_label: editDraft.sub_label,
       amount: amountNum,
       date: editDraft.date,
       week_number: weekNum,
@@ -326,6 +336,7 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
                           </div>
                           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                             <span>{t.category}</span>
+                            {t.sub_label && <><span>·</span><span style={{ background: 'rgba(139,92,246,0.15)', color: '#a78bfa', borderRadius: 5, padding: '1px 6px', fontSize: 10, fontWeight: 600 }}>{t.sub_label}</span></>}
                             <span>·</span>
                             <span>{t.date}</span>
                             {sharedLabel && <span style={{ background: '#1e3a5f', color: '#60a5fa', borderRadius: 5, padding: '1px 6px', fontSize: 10, fontWeight: 600 }}>{sharedLabel}</span>}
@@ -364,6 +375,21 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
                             <input type="date" value={editDraft.date} onChange={e => setEditDraft(d => d && ({ ...d, date: e.target.value }))}
                               style={{ width: '100%', padding: '8px 10px', borderRadius: 8, fontSize: 13, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', outline: 'none' }} />
                           </div>
+                          {/* Sub-category chips */}
+                          {editSubcatOptions.length > 0 && (
+                            <div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Sub-category</div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                {editSubcatOptions.map(s => (
+                                  <button key={s.id} type="button"
+                                    onClick={() => setEditDraft(d => d && ({ ...d, sub_label: d.sub_label === s.name ? '' : s.name }))}
+                                    style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: `1px solid ${editDraft.sub_label === s.name ? 'var(--purple)' : 'var(--border)'}`, background: editDraft.sub_label === s.name ? 'rgba(139,92,246,0.15)' : 'var(--surface)', color: editDraft.sub_label === s.name ? '#a78bfa' : 'var(--text3)' }}>
+                                    {s.name}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           {/* Shared toggle */}
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Shared with Thiyag</span>

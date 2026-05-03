@@ -150,6 +150,29 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
     .filter(t => Math.ceil(parseInt(t.date.split('-')[2], 10) / 7) === weekNum && !t.is_shared)
     .reduce((s, t) => s + Number(t.amount), 0)
 
+  // Investment goal widget data
+  const goalAmount: number | null = user.user_metadata?.investment_goal_amount ?? null
+  const goalDeadline: string | null = user.user_metadata?.investment_goal_deadline ?? null // "YYYY-MM"
+  const ytdInvestedTotal = (ytdInvestments ?? []).reduce((s, i) => s + Number(i.actual ?? 0), 0)
+  let goalWidget: { pct: number; onTrack: boolean; paceDelta: number; projectedDate: string } | null = null
+  if (goalAmount && goalDeadline) {
+    const [dlYear, dlMonth] = goalDeadline.split('-').map(Number)
+    const deadlineDate = new Date(dlYear, dlMonth, 1)
+    const nowDate = new Date(now.getFullYear(), now.getMonth(), 1)
+    const monthsLeft = Math.max(0, (deadlineDate.getFullYear() - nowDate.getFullYear()) * 12 + (deadlineDate.getMonth() - nowDate.getMonth()))
+    const monthsElapsed = Math.max(1, (nowDate.getFullYear() - new Date(now.getFullYear(), 0, 1).getFullYear()) * 12 + nowDate.getMonth() + 1)
+    const currentPace = ytdInvestedTotal / monthsElapsed
+    const requiredPace = goalAmount / (monthsElapsed + monthsLeft)
+    const onTrack = currentPace >= requiredPace
+    const pct = Math.min((ytdInvestedTotal / goalAmount) * 100, 100)
+    const monthsToComplete = currentPace > 0 ? Math.ceil((goalAmount - ytdInvestedTotal) / currentPace) : null
+    const projDate = monthsToComplete != null
+      ? new Date(nowDate.getFullYear(), nowDate.getMonth() + monthsToComplete, 1)
+        .toLocaleString('en-CA', { month: 'short', year: 'numeric' })
+      : '—'
+    goalWidget = { pct, onTrack, paceDelta: ((currentPace - requiredPace) / requiredPace) * 100, projectedDate: projDate }
+  }
+
   const navTiles = [
     { href: `/dashboard/${monthId}/monthly`, icon: '📋', label: 'Monthly', sublabel: `${formatCAD(summary.total_actual)} spent`, color: '#7c6fcd', grad: 'linear-gradient(135deg,#2a1e5a,#1a1240)' },
     { href: `/dashboard/${monthId}/transactions`, icon: '🗓️', label: 'Weekly', sublabel: `${formatCAD(weekSpent)} spent`, color: '#60a5fa', grad: 'linear-gradient(135deg,#1a2e5a,#0d1a40)' },
@@ -231,6 +254,31 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
           }}>{alert.msg}</div>
         ))}
 
+        {/* Investment Goal Widget */}
+        {goalWidget && goalAmount && goalDeadline && (
+          <>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 2px 10px' }}>INVESTMENT GOAL</div>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '16px', marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>${ytdInvestedTotal.toLocaleString('en-CA', { maximumFractionDigits: 0 })} <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text3)' }}>of ${Number(goalAmount).toLocaleString('en-CA', { maximumFractionDigits: 0 })}</span></div>
+                  <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>Target by {goalDeadline}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: goalWidget.onTrack ? 'var(--green)' : 'var(--red)' }}>
+                    {goalWidget.onTrack ? '✓ On track' : `${Math.abs(goalWidget.paceDelta).toFixed(0)}% behind`}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>Proj. {goalWidget.projectedDate}</div>
+                </div>
+              </div>
+              <div style={{ height: 8, background: 'var(--surface3)', borderRadius: 4, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${goalWidget.pct}%`, background: goalWidget.onTrack ? 'var(--green)' : 'var(--orange)', borderRadius: 4, transition: 'width 0.6s ease' }} />
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6, textAlign: 'right' }}>{goalWidget.pct.toFixed(1)}% complete</div>
+            </div>
+          </>
+        )}
+
         {/* Quick nav tiles — 2×2 grid */}
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 2px 10px' }}>NAVIGATE</div>
         <div style={{ position: 'relative', marginBottom: 12 }}>
@@ -245,6 +293,20 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
               </Link>
             ))}
           </div>
+          {/* Report tile — full width below the grid */}
+          <Link href={`/dashboard/report?from=${monthId}`} style={{ textDecoration: 'none', display: 'block', marginTop: 10 }}>
+            <div style={{ background: 'linear-gradient(135deg,#1a3a4a,#0d1e2e)', border: '1px solid #38bdf830', borderRadius: 18, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 4px 20px #38bdf818' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 24 }}>📈</span>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>Report</div>
+                  <div style={{ fontSize: 11, color: '#38bdf8', fontWeight: 600 }}>Filter by category, sub-category & date range</div>
+                </div>
+              </div>
+              <span style={{ fontSize: 18, color: '#38bdf8' }}>›</span>
+            </div>
+          </Link>
+
           {/* Compare button — centered at the intersection of the 4 tiles */}
           <Link href="/dashboard/compare" style={{
             textDecoration: 'none', position: 'absolute',
