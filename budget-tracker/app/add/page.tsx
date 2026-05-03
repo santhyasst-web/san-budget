@@ -42,20 +42,21 @@ function AddTransactionForm() {
   }, [category, pastVendors])
 
   useEffect(() => {
+    // Load all global spending types once on mount
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        supabase.from('subcategories').select('name').eq('user_id', user.id).order('name')
+          .then(({ data }) => setSubLabelOptions(data ? data.map((s: { name: string }) => s.name) : []))
+      }
+    })
+  }, [])
+
+  useEffect(() => {
     if (category && monthId) {
       supabase.from('transactions').select('subcategory').eq('month_id', monthId).eq('category', category)
         .then(({ data }) => {
           if (data) setPastVendors([...new Set(data.map((t: { subcategory: string }) => t.subcategory).filter(Boolean))])
         })
-      supabase.auth.getUser().then(({ data: { user } }) => {
-        if (user) {
-          supabase.from('subcategories').select('name').eq('user_id', user.id).eq('category', category)
-            .order('name').then(({ data }) => {
-              setSubLabelOptions(data ? data.map((s: { name: string }) => s.name) : [])
-              setSubLabel('')
-            })
-        }
-      })
     }
   }, [category, monthId])
 
@@ -228,7 +229,7 @@ function AddTransactionForm() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
             {VARIABLE_CATEGORIES.map(cat => (
               <button key={cat} type="button"
-                onClick={() => { setCategory(cat); setSubcategory('') }}
+                onClick={() => { setCategory(cat); setSubcategory(''); setSubLabel('') }}
                 style={{
                   padding: '10px 8px', borderRadius: 12, fontSize: 12, fontWeight: 600,
                   border: `1px solid ${category === cat ? 'var(--red)' : 'var(--border)'}`,

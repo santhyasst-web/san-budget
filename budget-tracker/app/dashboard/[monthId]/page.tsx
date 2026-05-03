@@ -150,6 +150,14 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
     .filter(t => Math.ceil(parseInt(t.date.split('-')[2], 10) / 7) === weekNum && !t.is_shared)
     .reduce((s, t) => s + Number(t.amount), 0)
 
+  // Spending by type breakdown
+  const spendingByType: Record<string, number> = {}
+  ;(transactions ?? []).forEach(t => {
+    if (t.sub_label) spendingByType[t.sub_label] = (spendingByType[t.sub_label] ?? 0) + Number(t.amount)
+  })
+  const spendingTypeEntries = Object.entries(spendingByType).sort((a, b) => b[1] - a[1])
+  const maxTypeSpend = spendingTypeEntries[0]?.[1] ?? 1
+
   // Investment goal widget data
   const goalAmount: number | null = user.user_metadata?.investment_goal_amount ?? null
   const goalDeadline: string | null = user.user_metadata?.investment_goal_deadline ?? null // "YYYY-MM"
@@ -256,6 +264,26 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
             fontSize: 13, fontWeight: 600, color: '#fff', animation: 'slideDown 0.3s ease',
           }}>{alert.msg}</div>
         ))}
+
+        {/* Spending by Type */}
+        {spendingTypeEntries.length > 0 && (
+          <>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 2px 10px' }}>SPENDING BY TYPE</div>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '14px 16px', marginBottom: 12 }}>
+              {spendingTypeEntries.map(([type, amount]) => (
+                <div key={type} style={{ marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#a78bfa' }}>{type}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{formatCAD(amount)}</span>
+                  </div>
+                  <div style={{ height: 6, background: 'var(--surface3)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${(amount / maxTypeSpend) * 100}%`, background: 'rgba(139,92,246,0.6)', borderRadius: 3 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Investment Goal Widget */}
         {goalWidget && goalAmount && goalDeadline && (

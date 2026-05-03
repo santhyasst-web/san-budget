@@ -37,10 +37,10 @@ function SettingsContent() {
   const [editingIncomeField, setEditingIncomeField] = useState<'salary' | 'rent_income' | 'other_income'>('salary')
   const [incomeEditValue, setIncomeEditValue] = useState('')
 
-  // Sub-categories (user-level, per category)
+  // Spending types (global, cross-category)
   const [subcategories, setSubcategories] = useState<Subcategory[]>([])
-  const [newSubcatCategory, setNewSubcatCategory] = useState<string | null>(null)
   const [newSubcatName, setNewSubcatName] = useState('')
+  const [addingSpendingType, setAddingSpendingType] = useState(false)
 
   const now = new Date()
   const [newYear, setNewYear] = useState(now.getFullYear())
@@ -233,15 +233,15 @@ function SettingsContent() {
     setIncomeEditValue('')
   }
 
-  async function addSubcat(category: string) {
+  async function addSubcat() {
     if (!newSubcatName.trim() || !user) return
     const { data, error } = await supabase.from('subcategories').insert({
-      user_id: user.id, category, name: newSubcatName.trim(),
+      user_id: user.id, name: newSubcatName.trim(),
     }).select().single()
     if (!error && data) {
       setSubcategories(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
       setNewSubcatName('')
-      setNewSubcatCategory(null)
+      setAddingSpendingType(false)
     }
   }
 
@@ -491,6 +491,40 @@ function SettingsContent() {
                   <button onClick={() => setSelectedMonthId(null)} style={{ ...saveBtn, color: 'var(--text3)', fontSize: 12 }}>Change month</button>
                 </div>
 
+                {/* Global Spending Types */}
+                <div style={{ ...cardStyle, marginBottom: 10 }}>
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Spending Types</span>
+                      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>Global tags — apply to any transaction regardless of category</div>
+                    </div>
+                    <button onClick={() => setAddingSpendingType(true)} style={{ ...saveBtn, fontSize: 13 }}>+ Add</button>
+                  </div>
+                  <div style={{ padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {subcategories.map(s => (
+                        <span key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(139,92,246,0.15)', border: '1px solid #a78bfa40', borderRadius: 20, padding: '5px 12px', fontSize: 13, color: '#a78bfa', fontWeight: 600 }}>
+                          {s.name}
+                          <button onClick={() => deleteSubcat(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a78bfa', fontSize: 15, lineHeight: 1, padding: 0, opacity: 0.6 }}>×</button>
+                        </span>
+                      ))}
+                      {addingSpendingType && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <input autoFocus type="text" value={newSubcatName} onChange={e => setNewSubcatName(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') addSubcat(); if (e.key === 'Escape') { setAddingSpendingType(false); setNewSubcatName('') } }}
+                            placeholder="e.g. Comfort" style={{ ...inputStyle, width: 120, textAlign: 'left', fontSize: 13 }} />
+                          <button onClick={() => addSubcat()} style={saveBtn}>Add</button>
+                          <button onClick={() => { setAddingSpendingType(false); setNewSubcatName('') }} style={{ ...saveBtn, color: 'var(--text3)' }}>✕</button>
+                        </span>
+                      )}
+                      {subcategories.length === 0 && !addingSpendingType && (
+                        <span style={{ fontSize: 13, color: 'var(--text3)' }}>No spending types yet — add one to start tagging transactions</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Variable Categories */}
                 <div style={cardStyle}>
                   <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Variable Categories</span>
@@ -512,58 +546,28 @@ function SettingsContent() {
                     </div>
                   )}
 
-                  {variableBudgets.map((b, i) => {
-                    const catSubcats = subcategories.filter(s => s.category === b.category)
-                    return (
-                      <div key={b.id} style={{ borderBottom: i < variableBudgets.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                        <div style={{ ...rowStyle, borderBottom: 'none' }}>
-                          <div>
-                            <div style={labelStyle}>{b.category}</div>
-                            <div style={dimStyle}>Budget: ${Number(b.budgeted).toFixed(2)}/mo</div>
-                          </div>
-                          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                            {editingVariable === b.id ? (
-                              <>
-                                <input type="number" inputMode="decimal" step="0.01" value={editValue}
-                                  onChange={ev => setEditValue(ev.target.value)} style={inputStyle} autoFocus />
-                                <button onClick={() => saveVariable(b.id)} style={saveBtn}>Save</button>
-                              </>
-                            ) : (
-                              <button onClick={() => { setEditingVariable(b.id); setEditValue(String(b.budgeted)) }}
-                                style={{ ...saveBtn, color: 'var(--purple)' }}>Edit</button>
-                            )}
-                            <button onClick={() => deleteCategory(b.id)}
-                              style={{ color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
-                          </div>
-                        </div>
-                        {/* Sub-categories */}
-                        <div style={{ padding: '0 16px 10px', background: 'var(--surface2)' }}>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: catSubcats.length > 0 ? 6 : 0 }}>
-                            {catSubcats.map(s => (
-                              <span key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 20, padding: '3px 10px', fontSize: 12, color: 'var(--text2)' }}>
-                                {s.name}
-                                <button onClick={() => deleteSubcat(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
-                              </span>
-                            ))}
-                            {newSubcatCategory === b.category ? (
-                              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <input autoFocus type="text" value={newSubcatName} onChange={e => setNewSubcatName(e.target.value)}
-                                  onKeyDown={e => { if (e.key === 'Enter') addSubcat(b.category); if (e.key === 'Escape') { setNewSubcatCategory(null); setNewSubcatName('') } }}
-                                  placeholder="Sub-category name" style={{ ...inputStyle, width: 130, textAlign: 'left', fontSize: 12 }} />
-                                <button onClick={() => addSubcat(b.category)} style={saveBtn}>Add</button>
-                                <button onClick={() => { setNewSubcatCategory(null); setNewSubcatName('') }} style={{ ...saveBtn, color: 'var(--text3)' }}>✕</button>
-                              </span>
-                            ) : (
-                              <button onClick={() => { setNewSubcatCategory(b.category); setNewSubcatName('') }}
-                                style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: 20, padding: '3px 10px', fontSize: 12, color: 'var(--text3)', cursor: 'pointer' }}>
-                                + sub-category
-                              </button>
-                            )}
-                          </div>
-                        </div>
+                  {variableBudgets.map((b, i) => (
+                    <div key={b.id} style={{ ...rowStyle, borderBottom: i < variableBudgets.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                      <div>
+                        <div style={labelStyle}>{b.category}</div>
+                        <div style={dimStyle}>Budget: ${Number(b.budgeted).toFixed(2)}/mo</div>
                       </div>
-                    )
-                  })}
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        {editingVariable === b.id ? (
+                          <>
+                            <input type="number" inputMode="decimal" step="0.01" value={editValue}
+                              onChange={ev => setEditValue(ev.target.value)} style={inputStyle} autoFocus />
+                            <button onClick={() => saveVariable(b.id)} style={saveBtn}>Save</button>
+                          </>
+                        ) : (
+                          <button onClick={() => { setEditingVariable(b.id); setEditValue(String(b.budgeted)) }}
+                            style={{ ...saveBtn, color: 'var(--purple)' }}>Edit</button>
+                        )}
+                        <button onClick={() => deleteCategory(b.id)}
+                          style={{ color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </>
             )}

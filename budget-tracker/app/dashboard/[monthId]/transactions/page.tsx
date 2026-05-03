@@ -59,6 +59,10 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
     setLoading(true)
     supabase.auth.getUser().then(({ data: { user } }) => {
       setTrackingMode(user?.user_metadata?.tracking_mode ?? 'weekly')
+      if (user) {
+        supabase.from('subcategories').select('*').eq('user_id', user.id).order('name')
+          .then(({ data }) => setEditSubcatOptions(data ?? []))
+      }
     })
     Promise.all([
       supabase.from('transactions').select('*').eq('month_id', monthId).order('date', { ascending: false }),
@@ -102,12 +106,6 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
       is_shared: t.is_shared,
       shared_direction: t.shared_direction ?? 'from_thiyag',
       share_split: t.share_split ?? 'half',
-    })
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        supabase.from('subcategories').select('*').eq('user_id', user.id).eq('category', t.category).order('name')
-          .then(({ data }) => setEditSubcatOptions(data ?? []))
-      }
     })
   }
 
