@@ -165,7 +165,7 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
     const nowDate = new Date(now.getFullYear(), now.getMonth(), 1)
     const monthsLeft = Math.max(0, (deadlineDate.getFullYear() - nowDate.getFullYear()) * 12 + (deadlineDate.getMonth() - nowDate.getMonth()))
     const currentPace = ytdInvestedTotal / activeInvestmentMonths
-    const requiredPace = goalAmount / (monthsElapsed + monthsLeft)
+    const requiredPace = goalAmount / (activeInvestmentMonths + monthsLeft)
     const onTrack = currentPace >= requiredPace
     const pct = Math.min((ytdInvestedTotal / goalAmount) * 100, 100)
     const monthsToComplete = currentPace > 0 ? Math.ceil((goalAmount - ytdInvestedTotal) / currentPace) : null
