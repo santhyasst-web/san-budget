@@ -254,10 +254,9 @@ export default function ChartsPage({ params }: { params: Promise<{ monthId: stri
   // Weekly totals — use same calendar-week ranges as the transactions tab
   const chartWeekRanges = getWeekRanges(month.year, month.month)
   const weekTotals = chartWeekRanges.map(range =>
-    transactions.filter(t => {
-      const day = parseInt(t.date.split('-')[2], 10)
-      return day >= range.start && day <= range.end && !t.is_shared
-    }).reduce((s, t) => s + Number(t.amount), 0)
+    transactions
+      .filter(t => { const day = parseInt(t.date.split('-')[2], 10); return day >= range.start && day <= range.end })
+      .reduce((s, t) => s + (t.is_shared ? Number(t.amount) * 0.5 : Number(t.amount)), 0)
   )
   const maxWeek = Math.max(...weekTotals, 1)
 
