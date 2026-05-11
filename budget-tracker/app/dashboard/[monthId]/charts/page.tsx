@@ -99,7 +99,6 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
 
 // ── Weekly bar chart ─────────────────────────────────────────────────────────
 function WeeklyBars({ weekTotals, max }: { weekTotals: number[]; max: number }) {
-  const colors = ['#7c6fcd', '#7c6fcd', '#7c6fcd', '#7c6fcd', '#7c6fcd']
   return (
     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 100 }}>
       {weekTotals.map((total, i) => {
@@ -107,7 +106,7 @@ function WeeklyBars({ weekTotals, max }: { weekTotals: number[]; max: number }) 
         return (
           <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, height: '100%', justifyContent: 'flex-end' }}>
             <div style={{ fontSize: 9, color: 'var(--text3)', fontWeight: 600 }}>{formatCAD(total).replace('CA$', '$')}</div>
-            <div style={{ width: '100%', height: `${Math.max(pct, 4)}%`, background: colors[i], borderRadius: '4px 4px 0 0', minHeight: total > 0 ? 4 : 2, opacity: total > 0 ? 1 : 0.2 }} />
+            <div style={{ width: '100%', height: `${Math.max(pct, 4)}%`, background: '#7c6fcd', borderRadius: '4px 4px 0 0', minHeight: total > 0 ? 4 : 2, opacity: total > 0 ? 1 : 0.2 }} />
             <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 700 }}>W{i + 1}</div>
           </div>
         )
@@ -171,6 +170,21 @@ function SavingsGauge({ pct }: { pct: number }) {
       <text x={cx + r + 4} y={cy + 16} textAnchor="middle" fill="var(--text3)" fontSize={8}>100%</text>
     </svg>
   )
+}
+
+// Sun-Sat calendar weeks clipped to month boundaries (same logic as transactions tab)
+function getWeekRanges(year: number, month: number): Array<{ start: number; end: number }> {
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const firstDow = new Date(year, month - 1, 1).getDay()
+  const ranges: Array<{ start: number; end: number }> = []
+  const firstWeekEnd = Math.min(7 - firstDow, daysInMonth)
+  ranges.push({ start: 1, end: firstWeekEnd })
+  let day = firstWeekEnd + 1
+  while (day <= daysInMonth) {
+    ranges.push({ start: day, end: Math.min(day + 6, daysInMonth) })
+    day += 7
+  }
+  return ranges
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
@@ -237,9 +251,13 @@ export default function ChartsPage({ params }: { params: Promise<{ monthId: stri
     color: CATEGORY_COLORS[b.category] ?? '#94a3b8',
   })).filter(s => s.value > 0)
 
-  // Weekly totals — compute week from date string to avoid timezone bugs in stored week_number
-  const weekTotals = [1, 2, 3, 4, 5].map(w =>
-    transactions.filter(t => Math.ceil(parseInt(t.date.split('-')[2], 10) / 7) === w && !t.is_shared).reduce((s, t) => s + Number(t.amount), 0)
+  // Weekly totals — use same calendar-week ranges as the transactions tab
+  const chartWeekRanges = getWeekRanges(month.year, month.month)
+  const weekTotals = chartWeekRanges.map(range =>
+    transactions.filter(t => {
+      const day = parseInt(t.date.split('-')[2], 10)
+      return day >= range.start && day <= range.end && !t.is_shared
+    }).reduce((s, t) => s + Number(t.amount), 0)
   )
   const maxWeek = Math.max(...weekTotals, 1)
 

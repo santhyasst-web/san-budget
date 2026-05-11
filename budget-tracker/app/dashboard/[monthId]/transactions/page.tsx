@@ -50,7 +50,7 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
   const [trackingMode, setTrackingMode] = useState<'weekly' | 'monthly'>('weekly')
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editDraft, setEditDraft] = useState<{ subcategory: string; sub_label: string; amount: string; date: string; is_shared: boolean; shared_direction: 'from_thiyag' | 'to_thiyag'; share_split: 'half' | 'full' } | null>(null)
+  const [editDraft, setEditDraft] = useState<{ category: string; subcategory: string; sub_label: string; amount: string; date: string; is_shared: boolean; shared_direction: 'from_thiyag' | 'to_thiyag'; share_split: 'half' | 'full' } | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
   const [editSubcatOptions, setEditSubcatOptions] = useState<Subcategory[]>([])
   const supabase = createClient()
@@ -99,6 +99,7 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
   function startEdit(t: Transaction) {
     setEditingId(t.id)
     setEditDraft({
+      category: t.category,
       subcategory: t.subcategory ?? '',
       sub_label: t.sub_label ?? '',
       amount: String(t.amount),
@@ -117,6 +118,7 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
 
     const weekNum = Math.ceil(parseInt(editDraft.date.split('-')[2], 10) / 7)
     await supabase.from('transactions').update({
+      category: editDraft.category,
       subcategory: editDraft.subcategory.trim(),
       sub_label: editDraft.sub_label,
       amount: amountNum,
@@ -148,6 +150,7 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
     // Update local state
     setTransactions(prev => prev.map(tx => tx.id === t.id ? {
       ...tx,
+      category: editDraft.category,
       subcategory: editDraft.subcategory.trim(),
       sub_label: editDraft.sub_label,
       amount: amountNum,
@@ -372,6 +375,19 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
                             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Date</div>
                             <input type="date" value={editDraft.date} onChange={e => setEditDraft(d => d && ({ ...d, date: e.target.value }))}
                               style={{ width: '100%', padding: '8px 10px', borderRadius: 8, fontSize: 13, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', outline: 'none' }} />
+                          </div>
+                          {/* Category picker */}
+                          <div>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Category</div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {budgets.map(b => (
+                                <button key={b.category} type="button"
+                                  onClick={() => setEditDraft(d => d && ({ ...d, category: b.category }))}
+                                  style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: `1px solid ${editDraft.category === b.category ? 'var(--red)' : 'var(--border)'}`, background: editDraft.category === b.category ? 'rgba(229,72,77,0.15)' : 'var(--surface)', color: editDraft.category === b.category ? 'var(--red)' : 'var(--text3)' }}>
+                                  {b.category}
+                                </button>
+                              ))}
+                            </div>
                           </div>
                           {/* Sub-category chips */}
                           {editSubcatOptions.length > 0 && (
