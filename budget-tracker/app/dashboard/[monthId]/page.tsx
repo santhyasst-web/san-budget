@@ -144,11 +144,18 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const dayName = days[now.getDay()]
   const daysInMonth = new Date(month.year, month.month, 0).getDate()
-  const totalWeeks = Math.ceil(daysInMonth / 7)
-  const weekNum = Math.min(Math.ceil(now.getDate() / 7), totalWeeks)
+  // Calendar-week ranges (Sun–Sat, clipped to month boundaries)
+  const firstDow = new Date(month.year, month.month - 1, 1).getDay()
+  const weekRanges: Array<{ start: number; end: number }> = []
+  const firstWeekEnd = Math.min(7 - firstDow, daysInMonth)
+  weekRanges.push({ start: 1, end: firstWeekEnd })
+  let wd = firstWeekEnd + 1
+  while (wd <= daysInMonth) { weekRanges.push({ start: wd, end: Math.min(wd + 6, daysInMonth) }); wd += 7 }
+  const todayDay = now.getFullYear() === month.year && now.getMonth() + 1 === month.month ? now.getDate() : daysInMonth
+  const currentRange = weekRanges.find(r => todayDay >= r.start && todayDay <= r.end) ?? weekRanges[weekRanges.length - 1]
   const weekSpent = (transactions ?? [])
-    .filter(t => Math.ceil(parseInt(t.date.split('-')[2], 10) / 7) === weekNum && !t.is_shared)
-    .reduce((s, t) => s + Number(t.amount), 0)
+    .filter(t => { const d = parseInt(t.date.split('-')[2], 10); return d >= currentRange.start && d <= currentRange.end })
+    .reduce((s, t) => s + (t.is_shared ? (t.share_split === 'full' ? 0 : Number(t.amount) * 0.5) : Number(t.amount)), 0)
 
   // Spending by type breakdown
   const spendingByType: Record<string, number> = {}
