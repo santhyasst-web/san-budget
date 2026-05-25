@@ -186,10 +186,10 @@ export default function TransactionsPage({ params }: { params: Promise<{ monthId
   // Per-period actuals (shared counts at 50%)
   const weekCategoryActuals: Record<string, number> = {}
   weekTxns.forEach(t => {
-    const amt = t.is_shared ? Number(t.amount) * 0.5 : Number(t.amount)
+    const amt = t.is_shared ? (t.share_split === 'full' ? 0 : Number(t.amount) * 0.5) : Number(t.amount)
     weekCategoryActuals[t.category] = (weekCategoryActuals[t.category] ?? 0) + amt
   })
-  const weekTotal = weekTxns.reduce((s, t) => s + (t.is_shared ? Number(t.amount) * 0.5 : Number(t.amount)), 0)
+  const weekTotal = weekTxns.reduce((s, t) => s + (t.is_shared ? (t.share_split === 'full' ? 0 : Number(t.amount) * 0.5) : Number(t.amount)), 0)
   const weeklyBudget = (b: number) => b / (weekRanges.length || 1)
 
   // Alerts for >75% of weekly allocation

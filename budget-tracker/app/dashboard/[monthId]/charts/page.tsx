@@ -256,7 +256,7 @@ export default function ChartsPage({ params }: { params: Promise<{ monthId: stri
   const weekTotals = chartWeekRanges.map(range =>
     transactions
       .filter(t => { const day = parseInt(t.date.split('-')[2], 10); return day >= range.start && day <= range.end })
-      .reduce((s, t) => s + (t.is_shared ? Number(t.amount) * 0.5 : Number(t.amount)), 0)
+      .reduce((s, t) => s + (t.is_shared ? (t.share_split === 'full' ? 0 : Number(t.amount) * 0.5) : Number(t.amount)), 0)
   )
   const maxWeek = Math.max(...weekTotals, 1)
 
