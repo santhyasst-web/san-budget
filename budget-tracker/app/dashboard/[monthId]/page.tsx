@@ -215,7 +215,7 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
 
   const navTiles = [
     { href: `/dashboard/${monthId}/monthly`, icon: '📋', label: 'Monthly', sublabel: `${formatCAD(summary.total_actual)} spent`, color: '#7c6fcd', grad: 'linear-gradient(135deg,#2a1e5a,#1a1240)' },
-    { href: `/dashboard/${monthId}/transactions`, icon: '🗓️', label: 'Weekly', sublabel: `${formatCAD(weekSpent)} spent`, color: '#60a5fa', grad: 'linear-gradient(135deg,#1a2e5a,#0d1a40)' },
+    { href: `/dashboard/${monthId}/transactions`, icon: '🗓️', label: 'Weekly', sublabel: `${formatCAD(weekSpent)} · May ${currentRange.start}–${currentRange.end}`, color: '#60a5fa', grad: 'linear-gradient(135deg,#1a2e5a,#0d1a40)' },
     { href: `/dashboard/${monthId}/charts`, icon: '📊', label: 'Charts', sublabel: `${totalSpentPct.toFixed(0)}% of income`, color: '#f97316', grad: 'linear-gradient(135deg,#4a2a0a,#2e1a04)' },
     { href: `/dashboard/${monthId}/net-worth`, icon: '💎', label: 'Wealth', sublabel: formatCAD(currentWealth), color: '#30a46c', grad: 'linear-gradient(135deg,#0a3a20,#052212)' },
   ]
