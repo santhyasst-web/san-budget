@@ -292,17 +292,21 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
           <>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 2px 10px' }}>SPENDING BY TYPE</div>
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '14px 16px', marginBottom: 12 }}>
-              {spendingTypeEntries.map(([type, amount]) => (
-                <div key={type} style={{ marginBottom: 10 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#a78bfa' }}>{type}</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{formatCAD(amount)}</span>
+              {spendingTypeEntries.map(([type, amount], idx) => {
+                const palette = ['#7c6fcd','#30a46c','#f97316','#60a5fa','#f59e0b','#e5484d','#a78bfa','#38bdf8','#fb7185','#34d399']
+                const color = palette[idx % palette.length]
+                return (
+                  <div key={type} style={{ marginBottom: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color }}>{type}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{formatCAD(amount)}</span>
+                    </div>
+                    <div style={{ height: 6, background: 'var(--surface3)', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${(amount / maxTypeSpend) * 100}%`, background: color, borderRadius: 3, opacity: 0.8 }} />
+                    </div>
                   </div>
-                  <div style={{ height: 6, background: 'var(--surface3)', borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${(amount / maxTypeSpend) * 100}%`, background: 'rgba(139,92,246,0.6)', borderRadius: 3 }} />
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </>
         )}
