@@ -145,21 +145,6 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const dayName = days[now.getDay()]
   const daysInMonth = new Date(month.year, month.month, 0).getDate()
-  // Calendar-week ranges (Sun–Sat, clipped to month boundaries)
-  const firstDow = new Date(month.year, month.month - 1, 1).getDay()
-  const weekRanges: Array<{ start: number; end: number }> = []
-  const firstWeekEnd = Math.min(7 - firstDow, daysInMonth)
-  weekRanges.push({ start: 1, end: firstWeekEnd })
-  let wd = firstWeekEnd + 1
-  while (wd <= daysInMonth) { weekRanges.push({ start: wd, end: Math.min(wd + 6, daysInMonth) }); wd += 7 }
-  // Use the latest day that has a transaction to determine the current week
-  // This avoids server timezone issues — the most recent transaction date is always correct
-  const txnDays = (transactions ?? []).map(t => parseInt(t.date.split('-')[2], 10))
-  const latestTxnDay = txnDays.length > 0 ? Math.max(...txnDays) : daysInMonth
-  const currentRange = weekRanges.find(r => latestTxnDay >= r.start && latestTxnDay <= r.end) ?? weekRanges[weekRanges.length - 1]
-  const weekSpent = (transactions ?? [])
-    .filter(t => { const d = parseInt(t.date.split('-')[2], 10); return d >= currentRange.start && d <= currentRange.end })
-    .reduce((s, t) => s + (t.is_shared ? (t.share_split === 'full' ? 0 : Number(t.amount) * 0.5) : Number(t.amount)), 0)
 
   // Spending by type breakdown
   const spendingByType: Record<string, number> = {}

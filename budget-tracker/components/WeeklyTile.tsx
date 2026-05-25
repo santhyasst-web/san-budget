@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { formatCAD } from '@/lib/calculations/monthlySummary'
 import type { Transaction } from '@/lib/supabase/types'
 
@@ -26,20 +26,24 @@ function getWeekRanges(year: number, month: number) {
   return ranges
 }
 
+function compute(year: number, month: number, transactions: Transaction[]) {
+  const now = new Date()
+  const ranges = getWeekRanges(year, month)
+  const isCurrentMonth = now.getFullYear() === year && now.getMonth() + 1 === month
+  const todayDay = isCurrentMonth ? now.getDate() : new Date(year, month, 0).getDate()
+  const range = ranges.find(r => todayDay >= r.start && todayDay <= r.end) ?? ranges[ranges.length - 1]
+  const spent = transactions
+    .filter(t => { const d = parseInt(t.date.split('-')[2], 10); return d >= range.start && d <= range.end })
+    .reduce((s, t) => s + (t.is_shared ? (t.share_split === 'full' ? 0 : Number(t.amount) * 0.5) : Number(t.amount)), 0)
+  return { spent, range }
+}
+
 export function WeeklyTile({ monthId, year, month, transactions }: Props) {
-  const { weekSpent, range } = useMemo(() => {
-    const now = new Date() // client-side: correct local timezone
-    const ranges = getWeekRanges(year, month)
-    const isCurrentMonth = now.getFullYear() === year && now.getMonth() + 1 === month
-    const todayDay = isCurrentMonth ? now.getDate() : new Date(year, month, 0).getDate()
-    const range = ranges.find(r => todayDay >= r.start && todayDay <= r.end) ?? ranges[ranges.length - 1]
-    const weekSpent = transactions
-      .filter(t => {
-        const d = parseInt(t.date.split('-')[2], 10)
-        return d >= range.start && d <= range.end
-      })
-      .reduce((s, t) => s + (t.is_shared ? (t.share_split === 'full' ? 0 : Number(t.amount) * 0.5) : Number(t.amount)), 0)
-    return { weekSpent, range }
+  const [result, setResult] = useState<{ spent: number; range: { start: number; end: number } } | null>(null)
+
+  useEffect(() => {
+    // Runs only on the client — correct local timezone guaranteed
+    setResult(compute(year, month, transactions))
   }, [year, month, transactions])
 
   return (
@@ -48,7 +52,7 @@ export function WeeklyTile({ monthId, year, month, transactions }: Props) {
         <span style={{ fontSize: 28 }}>🗓️</span>
         <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>Weekly</div>
         <div style={{ fontSize: 11, color: '#60a5fa', fontWeight: 600 }}>
-          {formatCAD(weekSpent)} · {range.start}–{range.end}
+          {result ? `${formatCAD(result.spent)} · ${result.range.start}–${result.range.end}` : '—'}
         </div>
       </div>
     </Link>
