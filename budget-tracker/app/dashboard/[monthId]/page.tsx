@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { BottomNav } from '@/components/layout/BottomNav'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { computeMonthlySummary, getVariableActualByCategory, getMonthName, formatCAD } from '@/lib/calculations/monthlySummary'
+import { AskPanel } from '@/components/AskPanel'
 import Link from 'next/link'
 
 const CATEGORY_ICONS: Record<string, { icon: string; grad: string }> = {
@@ -184,6 +185,28 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
     goalWidget = { pct, onTrack, paceDelta: ((currentPace - requiredPace) / requiredPace) * 100, projectedDate: projDate }
   }
 
+  // Build context string for AI assistant
+  const askContext = [
+    `Month: ${getMonthName(month.month)} ${month.year}`,
+    `Income: salary ${formatCAD(Number(month.salary))}, rent ${formatCAD(Number(month.rent_income))}, other ${formatCAD(Number(month.other_income ?? 0))}, total ${formatCAD(summary.total_income)}`,
+    `Total spent: ${formatCAD(summary.total_actual)} (fixed ${formatCAD(summary.total_fixed_actual)}, variable ${formatCAD(summary.total_variable_actual)}, investments ${formatCAD(summary.total_investments_actual)})`,
+    `Remaining: ${formatCAD(summary.remaining_income)}`,
+    '',
+    'Variable budgets:',
+    ...(variableBudgets ?? []).map(b => `  ${b.category}: budget ${formatCAD(Number(b.budgeted))}, spent ${formatCAD(variableActuals[b.category] ?? 0)}`),
+    '',
+    'Fixed expenses:',
+    ...(fixedExpenses ?? []).map(e => `  ${e.category}: ${formatCAD(Number(e.actual ?? 0))}`),
+    '',
+    'Investments:',
+    ...(investments ?? []).map(i => `  ${i.vehicle}: budgeted ${formatCAD(Number(i.budgeted))}, actual ${formatCAD(Number(i.actual ?? 0))}`),
+    '',
+    'Transactions (date, category, vendor, amount, spending type):',
+    ...(transactions ?? []).map(t =>
+      `  ${t.date} | ${t.category} | ${t.subcategory || '—'} | ${formatCAD(Number(t.amount))}${t.sub_label ? ` [${t.sub_label}]` : ''}${t.is_shared ? ` (shared ${t.share_split})` : ''}`
+    ),
+  ].join('\n')
+
   const navTiles = [
     { href: `/dashboard/${monthId}/monthly`, icon: '📋', label: 'Monthly', sublabel: `${formatCAD(summary.total_actual)} spent`, color: '#7c6fcd', grad: 'linear-gradient(135deg,#2a1e5a,#1a1240)' },
     { href: `/dashboard/${monthId}/transactions`, icon: '🗓️', label: 'Weekly', sublabel: `${formatCAD(weekSpent)} spent`, color: '#60a5fa', grad: 'linear-gradient(135deg,#1a2e5a,#0d1a40)' },
@@ -204,6 +227,7 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Link href="/dashboard" style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text2)', textDecoration: 'none', fontSize: 16 }}>←</Link>
             <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text2)' }}>{getMonthName(month.month)} {month.year}</span>
+            <AskPanel context={askContext} />
             <Link href={`/settings?monthId=${monthId}`} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text2)', textDecoration: 'none', fontSize: 18 }}>⚙️</Link>
           </div>
         </div>
