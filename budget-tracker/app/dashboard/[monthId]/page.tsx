@@ -145,6 +145,8 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const dayName = days[now.getDay()]
   const daysInMonth = new Date(month.year, month.month, 0).getDate()
+  const totalWeeks = Math.ceil(daysInMonth / 7)
+  const weekNum = Math.min(Math.ceil(now.getDate() / 7), totalWeeks)
 
   // Spending by type breakdown
   const spendingByType: Record<string, number> = {}
