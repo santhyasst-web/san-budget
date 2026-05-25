@@ -120,7 +120,7 @@ export function AskPanel() {
         aria-label="Ask about your spending"
         style={{
           position: 'fixed',
-          bottom: 'calc(60px + env(safe-area-inset-bottom, 0px) + 14px)',
+          bottom: 94,
           right: 16, zIndex: 39,
           width: 44, height: 44, borderRadius: '50%',
           background: 'linear-gradient(135deg,#7c3aed,#5b21b6)',
@@ -138,12 +138,11 @@ export function AskPanel() {
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 41 }} />
       )}
 
-      {/* Bottom sheet — sits above the bottom nav, respects safe area */}
+      {/* Bottom sheet — anchored at bottom:0, slides up above nav when open */}
       <div style={{
-        position: 'fixed', left: 0, right: 0,
-        bottom: 'calc(60px + env(safe-area-inset-bottom, 0px))',
+        position: 'fixed', left: 0, right: 0, bottom: 0,
         zIndex: 50,
-        transform: open ? 'translateY(0)' : 'translateY(110%)',
+        transform: open ? 'translateY(-80px)' : 'translateY(100%)',
         transition: 'transform 0.3s cubic-bezier(0.32,0.72,0,1)',
         background: 'var(--surface)', borderRadius: '20px 20px 0 0',
         boxShadow: '0 -8px 40px rgba(0,0,0,0.5)',

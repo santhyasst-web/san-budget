@@ -31,7 +31,7 @@ export function BottomNav({ monthId }: Props) {
       position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40,
       background: 'var(--surface)',
       borderTop: '1px solid var(--border)',
-      paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+      paddingBottom: 20,
     }}>
       <div style={{ display: 'flex', maxWidth: 520, margin: '0 auto' }}>
         {navItems.map(item => {

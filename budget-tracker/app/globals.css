@@ -27,6 +27,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+
 input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5); }
 ::-webkit-scrollbar { width: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
