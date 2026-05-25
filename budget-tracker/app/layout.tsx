@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import { AskPanel } from '@/components/AskPanel'
 
 export const metadata: Metadata = {
   title: 'San Budget',
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="h-full bg-gray-900 font-sans antialiased text-white">
         {children}
+        <AskPanel />
       </body>
     </html>
   )
