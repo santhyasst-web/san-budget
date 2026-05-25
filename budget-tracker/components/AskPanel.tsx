@@ -114,12 +114,14 @@ export function AskPanel() {
 
   return (
     <>
-      {/* Floating "?" button — above bottom nav */}
+      {/* Floating "?" button — above bottom nav, respects safe area */}
       <button
         onClick={handleOpen}
         aria-label="Ask about your spending"
         style={{
-          position: 'fixed', bottom: 84, right: 16, zIndex: 30,
+          position: 'fixed',
+          bottom: 'calc(60px + env(safe-area-inset-bottom, 0px) + 14px)',
+          right: 16, zIndex: 39,
           width: 44, height: 44, borderRadius: '50%',
           background: 'linear-gradient(135deg,#7c3aed,#5b21b6)',
           boxShadow: '0 4px 16px rgba(124,58,237,0.5)',
@@ -133,18 +135,20 @@ export function AskPanel() {
       {/* Backdrop */}
       {open && (
         <div onClick={() => setOpen(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 40 }} />
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 41 }} />
       )}
 
-      {/* Bottom sheet — sits above the 72px bottom nav */}
+      {/* Bottom sheet — sits above the bottom nav, respects safe area */}
       <div style={{
-        position: 'fixed', left: 0, right: 0, bottom: 72, zIndex: 50,
+        position: 'fixed', left: 0, right: 0,
+        bottom: 'calc(60px + env(safe-area-inset-bottom, 0px))',
+        zIndex: 50,
         transform: open ? 'translateY(0)' : 'translateY(110%)',
         transition: 'transform 0.3s cubic-bezier(0.32,0.72,0,1)',
         background: 'var(--surface)', borderRadius: '20px 20px 0 0',
         boxShadow: '0 -8px 40px rgba(0,0,0,0.5)',
         display: 'flex', flexDirection: 'column',
-        maxHeight: 'calc(75vh - 72px)',
+        maxHeight: '70vh',
         minHeight: 320,
       }}>
         {/* Handle + header */}
@@ -174,9 +178,13 @@ export function AskPanel() {
               background: m.role === 'user' ? '#7c3aed' : 'var(--surface2)',
               color: '#fff',
               borderRadius: m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-              padding: '10px 14px', fontSize: 14, lineHeight: 1.55,
+              padding: '10px 14px', fontSize: 14, lineHeight: 1.6,
             }}>
-              {m.text}
+              {m.text.split('\n').map((line, j) => (
+                <div key={j} style={{ marginBottom: line.startsWith('•') ? 4 : 0 }}>
+                  {line || <br />}
+                </div>
+              ))}
             </div>
           ))}
           {loading && (
