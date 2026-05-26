@@ -337,14 +337,6 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 2px 10px' }}>NAVIGATE</div>
         <div style={{ position: 'relative', marginBottom: 12 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <Link href={`/dashboard/${monthId}/monthly`} style={{ textDecoration: 'none' }}>
-              <div style={{ background: 'linear-gradient(135deg,#2a1e5a,#1a1240)', border: '1px solid #7c6fcd30', borderRadius: 18, padding: '16px 16px 14px', display: 'flex', flexDirection: 'column', gap: 6, boxShadow: '0 4px 20px #7c6fcd18' }}>
-                <span style={{ fontSize: 28 }}>📋</span>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>Monthly</div>
-                <div style={{ fontSize: 11, color: '#7c6fcd', fontWeight: 600 }}>{formatCAD(summary.total_actual)} spent</div>
-              </div>
-            </Link>
-            <WeeklyTile monthId={monthId} year={month.year} month={month.month} transactions={transactions ?? []} />
             {navTiles.map(tile => (
               <Link key={tile.href} href={tile.href} style={{ textDecoration: 'none' }}>
                 <div style={{ background: tile.grad, border: `1px solid ${tile.color}30`, borderRadius: 18, padding: '16px 16px 14px', display: 'flex', flexDirection: 'column', gap: 6, boxShadow: `0 4px 20px ${tile.color}18` }}>
@@ -354,6 +346,7 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
                 </div>
               </Link>
             ))}
+            <WeeklyTile monthId={monthId} year={month.year} month={month.month} transactions={transactions ?? []} />
           </div>
           {/* Report tile — full width below the grid */}
           <Link href={`/dashboard/report?from=${monthId}`} style={{ textDecoration: 'none', display: 'block', marginTop: 10 }}>
