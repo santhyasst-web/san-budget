@@ -32,53 +32,77 @@ export function AskPanel() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const [
-      { data: month },
-      { data: transactions },
-      { data: variableBudgets },
-      { data: fixedExpenses },
-      { data: investments },
-    ] = await Promise.all([
-      supabase.from('months').select('*').eq('id', monthId).single(),
-      supabase.from('transactions').select('*').eq('month_id', monthId),
-      supabase.from('variable_budget').select('*').eq('month_id', monthId),
-      supabase.from('fixed_expenses').select('*').eq('month_id', monthId),
-      supabase.from('investments').select('*').eq('month_id', monthId),
-    ])
+    // Fetch all months for this user
+    const { data: allMonths } = await supabase
+      .from('months').select('*').eq('user_id', user.id).order('year').order('month')
+    if (!allMonths || allMonths.length === 0) return
 
-    if (!month) return
+    const allMonthIds = allMonths.map(m => m.id)
+
+    const [
+      { data: allTransactions },
+      { data: allVariableBudgets },
+      { data: allFixedExpenses },
+      { data: allInvestments },
+    ] = await Promise.all([
+      supabase.from('transactions').select('*').in('month_id', allMonthIds),
+      supabase.from('variable_budget').select('*').in('month_id', allMonthIds),
+      supabase.from('fixed_expenses').select('*').in('month_id', allMonthIds),
+      supabase.from('investments').select('*').in('month_id', allMonthIds),
+    ])
 
     const fmt = (n: number) => `$${Number(n).toFixed(2)}`
     const eff = (t: { amount: number; is_shared: boolean; share_split: string }) =>
       t.is_shared ? (t.share_split === 'full' ? 0 : t.amount * 0.5) : t.amount
 
-    const variableActuals: Record<string, number> = {}
-    ;(transactions ?? []).forEach(t => {
-      variableActuals[t.category] = (variableActuals[t.category] ?? 0) + eff(t)
-    })
+    const currentMonth = allMonths.find(m => m.id === monthId)
+    const currentLabel = currentMonth
+      ? `${new Date(currentMonth.year, currentMonth.month - 1).toLocaleString('en', { month: 'long' })} ${currentMonth.year}`
+      : monthId
 
-    const totalIncome = Number(month.salary) + Number(month.rent_income) + Number(month.other_income ?? 0)
-    const totalSpent = (transactions ?? []).reduce((s, t) => s + eff(t), 0)
-
-    const lines = [
-      `Month: ${new Date(month.year, month.month - 1).toLocaleString('en', { month: 'long' })} ${month.year}`,
-      `Income: ${fmt(totalIncome)} (salary ${fmt(Number(month.salary))}, rent ${fmt(Number(month.rent_income))}, other ${fmt(Number(month.other_income ?? 0))})`,
-      `Total variable spent: ${fmt(totalSpent)}`,
+    const lines: string[] = [
+      `Currently viewing: ${currentLabel}`,
+      `Data available for ${allMonths.length} month(s): ${allMonths.map(m => `${new Date(m.year, m.month - 1).toLocaleString('en', { month: 'short' })} ${m.year}`).join(', ')}`,
       '',
-      'Variable budgets vs actuals:',
-      ...(variableBudgets ?? []).map(b => `  ${b.category}: budget ${fmt(Number(b.budgeted))}, spent ${fmt(variableActuals[b.category] ?? 0)}`),
-      '',
-      'Fixed expenses:',
-      ...(fixedExpenses ?? []).map(e => `  ${e.category}: ${fmt(Number(e.actual ?? 0))}`),
-      '',
-      'Investments:',
-      ...(investments ?? []).map(i => `  ${i.vehicle}: budgeted ${fmt(Number(i.budgeted))}, actual ${fmt(Number(i.actual ?? 0))}`),
-      '',
-      'All transactions (date | category | vendor | amount | spending type):',
-      ...(transactions ?? []).map(t =>
-        `  ${t.date} | ${t.category} | ${t.subcategory || '—'} | ${fmt(Number(t.amount))}${t.sub_label ? ` [${t.sub_label}]` : ''}${t.is_shared ? ` (shared ${t.share_split})` : ''}`
-      ),
     ]
+
+    for (const month of allMonths) {
+      const label = `${new Date(month.year, month.month - 1).toLocaleString('en', { month: 'long' })} ${month.year}`
+      const txns = (allTransactions ?? []).filter(t => t.month_id === month.id)
+      const vBudgets = (allVariableBudgets ?? []).filter(b => b.month_id === month.id)
+      const fixed = (allFixedExpenses ?? []).filter(e => e.month_id === month.id)
+      const invs = (allInvestments ?? []).filter(i => i.month_id === month.id)
+
+      const totalIncome = Number(month.salary) + Number(month.rent_income) + Number(month.other_income ?? 0)
+      const totalSpent = txns.reduce((s, t) => s + eff(t), 0)
+
+      const variableActuals: Record<string, number> = {}
+      txns.forEach(t => { variableActuals[t.category] = (variableActuals[t.category] ?? 0) + eff(t) })
+
+      lines.push(`=== ${label} ===`)
+      lines.push(`Income: ${fmt(totalIncome)} | Spent: ${fmt(totalSpent)} | Left: ${fmt(totalIncome - totalSpent)}`)
+
+      if (vBudgets.length > 0) {
+        lines.push('Variable budgets:')
+        vBudgets.forEach(b => lines.push(`  ${b.category}: budget ${fmt(Number(b.budgeted))}, spent ${fmt(variableActuals[b.category] ?? 0)}`))
+      }
+      if (fixed.length > 0) {
+        lines.push('Fixed expenses:')
+        fixed.forEach(e => lines.push(`  ${e.category}: ${fmt(Number(e.actual ?? 0))}`))
+      }
+      if (invs.length > 0) {
+        lines.push('Investments:')
+        invs.forEach(i => lines.push(`  ${i.vehicle}: budgeted ${fmt(Number(i.budgeted))}, actual ${fmt(Number(i.actual ?? 0))}`))
+      }
+      if (txns.length > 0) {
+        lines.push('Transactions:')
+        txns.forEach(t => lines.push(
+          `  ${t.date} | ${t.category} | ${t.subcategory || '—'} | ${fmt(Number(t.amount))}${t.sub_label ? ` [${t.sub_label}]` : ''}${t.is_shared ? ` (shared ${t.share_split})` : ''}`
+        ))
+      }
+      lines.push('')
+    }
+
     setContext(lines.join('\n'))
   }
 
@@ -156,7 +180,7 @@ export function AskPanel() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Ask about your spending</div>
-              <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>e.g. "Where did I spend most on food?"</div>
+              <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>e.g. "Did I spend more on Uber this month vs last?"</div>
             </div>
             <button onClick={() => setOpen(false)}
               style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 24, cursor: 'pointer', lineHeight: 1, padding: '0 4px' }}>×</button>
@@ -167,7 +191,7 @@ export function AskPanel() {
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {messages.length === 0 && !loading && (
             <div style={{ color: 'var(--text3)', fontSize: 13, textAlign: 'center', marginTop: 20 }}>
-              Ask anything about this month's transactions, budgets, or spending patterns.
+              Ask anything about your spending — across any month, or compare months.
             </div>
           )}
           {messages.map((m, i) => (
