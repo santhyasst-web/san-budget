@@ -94,14 +94,16 @@ export function AskPanel() {
       const accts = (allAccounts ?? []).filter(a => a.month_id === month.id)
 
       const totalIncome = Number(month.salary) + Number(month.rent_income) + Number(month.other_income ?? 0)
-      const totalSpent = txns.reduce((s, t) => s + eff(t), 0)
+      const totalVariableSpent = txns.reduce((s, t) => s + eff(t), 0)
+      const totalFixedSpent = fixed.reduce((s, e) => s + Number(e.actual ?? 0), 0)
+      const totalSpent = totalVariableSpent + totalFixedSpent
       const netWorth = accts.reduce((s, a) => s + Number(a.balance), 0)
 
       const variableActuals: Record<string, number> = {}
       txns.forEach(t => { variableActuals[t.category] = (variableActuals[t.category] ?? 0) + eff(t) })
 
       lines.push(`=== ${label} ===`)
-      lines.push(`Income: ${fmt(totalIncome)} | Spent: ${fmt(totalSpent)} | Left: ${fmt(totalIncome - totalSpent)}`)
+      lines.push(`Income: ${fmt(totalIncome)} | Total expenses: ${fmt(totalSpent)} (variable: ${fmt(totalVariableSpent)}, fixed: ${fmt(totalFixedSpent)}) | Left: ${fmt(totalIncome - totalSpent)}`)
       if (netWorth > 0) lines.push(`Net worth: ${fmt(netWorth)}`)
 
       if (accts.length > 0) {
