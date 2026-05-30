@@ -49,11 +49,13 @@ export function AskPanel() {
       { data: allVariableBudgets },
       { data: allFixedExpenses },
       { data: allInvestments },
+      { data: allAccounts },
     ] = await Promise.all([
       supabase.from('transactions').select('*').in('month_id', allMonthIds),
       supabase.from('variable_budget').select('*').in('month_id', allMonthIds),
       supabase.from('fixed_expenses').select('*').in('month_id', allMonthIds),
       supabase.from('investments').select('*').in('month_id', allMonthIds),
+      supabase.from('accounts').select('*').in('month_id', allMonthIds),
     ])
 
     const fmt = (n: number) => `$${Number(n).toFixed(2)}`
@@ -71,22 +73,41 @@ export function AskPanel() {
       '',
     ]
 
+    // Net worth trend summary across all months
+    const netWorthByMonth = allMonths.map(m => {
+      const accts = (allAccounts ?? []).filter(a => a.month_id === m.id)
+      const total = accts.reduce((s, a) => s + Number(a.balance), 0)
+      return { label: `${new Date(m.year, m.month - 1).toLocaleString('en', { month: 'short' })} ${m.year}`, total, accts }
+    })
+    if (netWorthByMonth.some(m => m.total > 0)) {
+      lines.push('Net worth by month:')
+      netWorthByMonth.forEach(m => lines.push(`  ${m.label}: ${fmt(m.total)}`))
+      lines.push('')
+    }
+
     for (const month of allMonths) {
       const label = `${new Date(month.year, month.month - 1).toLocaleString('en', { month: 'long' })} ${month.year}`
       const txns = (allTransactions ?? []).filter(t => t.month_id === month.id)
       const vBudgets = (allVariableBudgets ?? []).filter(b => b.month_id === month.id)
       const fixed = (allFixedExpenses ?? []).filter(e => e.month_id === month.id)
       const invs = (allInvestments ?? []).filter(i => i.month_id === month.id)
+      const accts = (allAccounts ?? []).filter(a => a.month_id === month.id)
 
       const totalIncome = Number(month.salary) + Number(month.rent_income) + Number(month.other_income ?? 0)
       const totalSpent = txns.reduce((s, t) => s + eff(t), 0)
+      const netWorth = accts.reduce((s, a) => s + Number(a.balance), 0)
 
       const variableActuals: Record<string, number> = {}
       txns.forEach(t => { variableActuals[t.category] = (variableActuals[t.category] ?? 0) + eff(t) })
 
       lines.push(`=== ${label} ===`)
       lines.push(`Income: ${fmt(totalIncome)} | Spent: ${fmt(totalSpent)} | Left: ${fmt(totalIncome - totalSpent)}`)
+      if (netWorth > 0) lines.push(`Net worth: ${fmt(netWorth)}`)
 
+      if (accts.length > 0) {
+        lines.push('Account balances:')
+        accts.forEach(a => lines.push(`  ${a.name}: ${fmt(Number(a.balance))}`))
+      }
       if (vBudgets.length > 0) {
         lines.push('Variable budgets:')
         vBudgets.forEach(b => lines.push(`  ${b.category}: budget ${fmt(Number(b.budgeted))}, spent ${fmt(variableActuals[b.category] ?? 0)}`))
