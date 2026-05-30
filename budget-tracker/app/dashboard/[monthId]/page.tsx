@@ -5,6 +5,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar'
 import { computeMonthlySummary, getVariableActualByCategory, getMonthName, formatCAD } from '@/lib/calculations/monthlySummary'
 import Link from 'next/link'
 import { WeeklyTile } from '@/components/WeeklyTile'
+import { WealthSparkline } from '@/components/WealthSparkline'
 
 const CATEGORY_ICONS: Record<string, { icon: string; grad: string }> = {
   'Grocery':            { icon: '🛒', grad: 'linear-gradient(135deg,#1a4a2e,#0d2e1a)' },
@@ -41,30 +42,6 @@ function IconBox({ category }: { category: string }) {
   )
 }
 
-// SVG sparkline for wealth trend
-function WealthSparkline({ values }: { values: number[] }) {
-  if (values.length < 2) return null
-  const w = 200, h = 48
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const range = max - min || 1
-  const pts = values.map((v, i) => {
-    const x = (i / (values.length - 1)) * w
-    const y = h - ((v - min) / range) * (h - 8) - 4
-    return `${x},${y}`
-  })
-  const trend = values[values.length - 1] >= values[0]
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
-      <polyline points={pts.join(' ')} fill="none" stroke={trend ? '#30a46c' : '#e5484d'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-      {/* Dots at each data point */}
-      {pts.map((pt, i) => {
-        const [x, y] = pt.split(',').map(Number)
-        return <circle key={i} cx={x} cy={y} r={i === values.length - 1 ? 4 : 2.5} fill={trend ? '#30a46c' : '#e5484d'} />
-      })}
-    </svg>
-  )
-}
 
 export default async function MonthDashboardPage({ params }: { params: Promise<{ monthId: string }> }) {
   const { monthId } = await params
@@ -400,7 +377,7 @@ export default async function MonthDashboardPage({ params }: { params: Promise<{
               </div>
               {wealthValues.length > 1 && (
                 <>
-                  <WealthSparkline values={wealthValues} />
+                  <WealthSparkline values={wealthValues} labels={wealthByMonth.map(w => w.label)} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
                     {wealthByMonth.map((w, i) => (
                       <div key={i} style={{ fontSize: 9, color: 'var(--text3)', fontWeight: 600, textAlign: 'center' }}>{w.label}</div>

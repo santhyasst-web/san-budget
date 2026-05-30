@@ -7,6 +7,8 @@ import { CurrencyDisplay } from '@/components/ui/CurrencyDisplay'
 import Link from 'next/link'
 import type { Account } from '@/lib/supabase/types'
 
+interface MonthMeta { id: string; year: number; month: number; label: string }
+
 export default function NetWorthPage({ params }: { params: Promise<{ monthId: string }> }) {
   const { monthId } = use(params)
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -18,11 +20,29 @@ export default function NetWorthPage({ params }: { params: Promise<{ monthId: st
   const [newName, setNewName] = useState('')
   const [newType, setNewType] = useState('chequing')
   const [addingNew, setAddingNew] = useState(false)
+  const [allMonths, setAllMonths] = useState<MonthMeta[]>([])
+  const [allAccounts, setAllAccounts] = useState<Account[]>([])
+  const [activeTab, setActiveTab] = useState<'current' | 'history'>('current')
   const supabase = createClient()
 
   useEffect(() => {
-    supabase.from('accounts').select('*').eq('month_id', monthId).order('account_type')
-      .then(({ data }) => { setAccounts(data ?? []); setLoading(false) })
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const [{ data: accts }, { data: months }] = await Promise.all([
+        supabase.from('accounts').select('*').eq('month_id', monthId).order('account_type'),
+        supabase.from('months').select('id,year,month,label').eq('user_id', user.id).order('year').order('month'),
+      ])
+      setAccounts(accts ?? [])
+      setLoading(false)
+      if (months && months.length > 1) {
+        setAllMonths(months)
+        const monthIds = months.map((m: MonthMeta) => m.id)
+        const { data: hist } = await supabase.from('accounts').select('*').in('month_id', monthIds)
+        setAllAccounts(hist ?? [])
+      }
+    }
+    load()
   }, [monthId])
 
   async function saveBalance(id: string) {
@@ -72,10 +92,97 @@ export default function NetWorthPage({ params }: { params: Promise<{ monthId: st
           <h1 className="text-lg font-bold text-white">Net Worth</h1>
           <button onClick={() => setAddingNew(true)} className="text-red-400 text-sm font-medium">+ Add</button>
         </div>
+        <div className="flex max-w-lg mx-auto mt-3 gap-1">
+          {([['current', 'This Month'], ['history', 'History']] as const).map(([key, label]) => (
+            <button key={key} onClick={() => setActiveTab(key)} style={{
+              flex: 1, padding: '7px 0', fontSize: 12, fontWeight: 700,
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: activeTab === key ? 'var(--purple, #7c6fcd)' : '#6b7280',
+              borderBottom: `2px solid ${activeTab === key ? '#7c6fcd' : 'transparent'}`,
+            }}>{label}</button>
+          ))}
+        </div>
       </div>
 
       <div className="max-w-lg mx-auto px-4 pt-4 space-y-4">
-        <div className="grid grid-cols-3 gap-2">
+
+        {/* ── HISTORY TAB ── */}
+        {activeTab === 'history' && (
+          <div>
+            {allMonths.length < 2 ? (
+              <p style={{ textAlign: 'center', color: '#6b7280', padding: '40px 0', fontSize: 14 }}>
+                Need at least 2 months of data to show history.
+              </p>
+            ) : (() => {
+              // Get unique account names across all months
+              const accountNames = [...new Set(allAccounts.map(a => a.account_name))].sort()
+              const fmt = (n: number) => n === 0 ? '—' : `$${Number(n).toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+              const monthTotals = allMonths.map(m => ({
+                ...m,
+                total: allAccounts.filter(a => a.month_id === m.id).reduce((s, a) => s + Number(a.balance), 0),
+              }))
+              return (
+                <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: allMonths.length * 80 + 120 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left', padding: '8px 10px', color: '#6b7280', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', background: '#1f2937', position: 'sticky', left: 0, zIndex: 2, minWidth: 120 }}>Account</th>
+                        {allMonths.map(m => (
+                          <th key={m.id} style={{ textAlign: 'right', padding: '8px 10px', color: '#6b7280', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', background: '#1f2937', whiteSpace: 'nowrap', minWidth: 80 }}>
+                            {new Date(m.year, m.month - 1).toLocaleString('en', { month: 'short' })} {m.year}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {accountNames.map((name, ri) => (
+                        <tr key={name} style={{ background: ri % 2 === 0 ? '#111827' : '#1f2937' }}>
+                          <td style={{ padding: '10px 10px', color: '#fff', fontWeight: 600, position: 'sticky', left: 0, background: ri % 2 === 0 ? '#111827' : '#1f2937', zIndex: 1 }}>{name}</td>
+                          {allMonths.map(m => {
+                            const acct = allAccounts.find(a => a.month_id === m.id && a.account_name === name)
+                            const bal = acct ? Number(acct.balance) : null
+                            const prev = allMonths[allMonths.indexOf(m) - 1]
+                            const prevAcct = prev ? allAccounts.find(a => a.month_id === prev.id && a.account_name === name) : null
+                            const delta = bal !== null && prevAcct ? bal - Number(prevAcct.balance) : null
+                            return (
+                              <td key={m.id} style={{ textAlign: 'right', padding: '10px 10px', color: bal !== null ? '#fff' : '#4b5563', whiteSpace: 'nowrap' }}>
+                                {bal !== null ? fmt(bal) : '—'}
+                                {delta !== null && delta !== 0 && (
+                                  <div style={{ fontSize: 10, color: delta > 0 ? '#30a46c' : '#e5484d', fontWeight: 600 }}>
+                                    {delta > 0 ? '+' : ''}{fmt(delta)}
+                                  </div>
+                                )}
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                      {/* Total row */}
+                      <tr style={{ background: '#0d1426', borderTop: '1px solid #374151' }}>
+                        <td style={{ padding: '10px 10px', color: '#a78bfa', fontWeight: 800, fontSize: 13, position: 'sticky', left: 0, background: '#0d1426', zIndex: 1 }}>NET WORTH</td>
+                        {monthTotals.map((m, i) => {
+                          const delta = i > 0 ? m.total - monthTotals[i - 1].total : null
+                          return (
+                            <td key={m.id} style={{ textAlign: 'right', padding: '10px 10px', color: '#a78bfa', fontWeight: 800, fontSize: 13, whiteSpace: 'nowrap' }}>
+                              {fmt(m.total)}
+                              {delta !== null && delta !== 0 && (
+                                <div style={{ fontSize: 10, color: delta > 0 ? '#30a46c' : '#e5484d', fontWeight: 600 }}>
+                                  {delta > 0 ? '+' : ''}{fmt(delta)}
+                                </div>
+                              )}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )
+            })()}
+          </div>
+        )}
+
+        {activeTab === 'current' && <><div className="grid grid-cols-3 gap-2">
           {([
             { key: 'all' as const, label: 'Total Worth', amount: totalWorth },
             { key: 'liquid' as const, label: 'Liquid', amount: liquidWorth },
@@ -157,6 +264,7 @@ export default function NetWorthPage({ params }: { params: Promise<{ monthId: st
             </div>
           </div>
         )}
+        </>}
       </div>
 
       <BottomNav monthId={monthId} />
