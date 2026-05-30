@@ -24,6 +24,11 @@ export function AskPanel() {
   const monthIdMatch = pathname.match(/\/dashboard\/([^/]+)/)
   const monthId = monthIdMatch ? monthIdMatch[1] : null
 
+  // Must be before early return — hooks must run unconditionally
+  useEffect(() => {
+    if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, open])
+
   // Don't show on non-dashboard pages
   if (!monthId || pathname === '/dashboard') return null
 
@@ -111,10 +116,6 @@ export function AskPanel() {
     await fetchContext()
     setTimeout(() => inputRef.current?.focus(), 300)
   }
-
-  useEffect(() => {
-    if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, open])
 
   async function send() {
     const q = input.trim()
