@@ -106,7 +106,7 @@ export function AskPanel() {
 
       if (accts.length > 0) {
         lines.push('Account balances:')
-        accts.forEach(a => lines.push(`  ${a.name}: ${fmt(Number(a.balance))}`))
+        accts.forEach(a => lines.push(`  ${a.account_name} (${a.account_type}): ${fmt(Number(a.balance))}`))
       }
       if (vBudgets.length > 0) {
         lines.push('Variable budgets:')
